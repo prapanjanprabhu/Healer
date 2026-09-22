@@ -93,6 +93,20 @@ Full instructions: [`docs/development.md`](docs/development.md).
   standalone script for real-network manual testing); and dashboard screens
   for adding a server, enrollment instructions, and connection status. See
   [`docs/agent-protocol.md`](docs/agent-protocol.md).
+- **Phase 5 — done:** the real cross-platform Go Agent. Enrollment CLI with
+  secure local credential storage; a persistent WebSocket with
+  reconnect/exponential-backoff, heartbeat, and a protocol-version
+  compatibility check; real CPU/RAM/disk collection; a durable local
+  command journal so a redelivered command is never executed twice; a
+  restricted dispatcher (only `inspect_host` implemented — the other nine
+  structured types are safely rejected as not-yet-implemented, never as
+  arbitrary commands); safe per-command timeouts/cancellation; redacted
+  structured logging; Windows Service install/start/stop
+  (`golang.org/x/sys/windows/svc`) and a Linux systemd unit + install
+  scripts. Verified against the real Control Plane on both a real Windows
+  11 machine (installed and ran as an actual Windows Service) and a real
+  Linux container (systemd-style `SIGTERM` shutdown). See
+  [`docs/agent-runtime.md`](docs/agent-runtime.md).
 
 Deployment behavior (actually deploying, routing, and health-driven
 remediation) is not implemented yet — that's the API/worker logic layered on

@@ -1,0 +1,13 @@
+[Unit]
+Description=Healer Agent — connects this server to the Healer Control Plane.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/healer-agent run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
