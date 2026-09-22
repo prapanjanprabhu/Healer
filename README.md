@@ -63,7 +63,17 @@ Full instructions: [`docs/development.md`](docs/development.md).
 
 ## Status
 
-**Phase 1 (current):** monorepo foundation and architecture contract only — no
-deployment behavior implemented yet. `/health` works, the dashboard shows
-placeholder navigation, Celery connects to Redis, and the Go agent builds and
-prints its version.
+- **Phase 1 — done:** monorepo foundation and architecture contract. `/health`
+  works, the dashboard shows placeholder navigation, Celery connects to
+  Redis, and the Go agent builds and prints its version.
+- **Phase 2 — done:** PostgreSQL persistence layer. Full schema (users/roles,
+  servers/agents, applications/releases/instances, deployments,
+  domains/routing, health checks, secrets, metrics, audit log,
+  notifications) via typed SQLAlchemy models and Alembic migrations, a
+  repository/service layer so API routes stay free of raw DB logic, and
+  validated state machines for deployment/instance/agent-command status. See
+  [`docs/data-model.md`](docs/data-model.md).
+
+Deployment behavior (actually deploying, routing, and health-driven
+remediation) is not implemented yet — that's the API/worker logic layered on
+top of this schema in a later phase.

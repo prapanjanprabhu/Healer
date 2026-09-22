@@ -50,6 +50,17 @@ docker compose -f deploy/docker-compose.yml --env-file .env --profile gateway up
 make migrate     # alembic upgrade head, run from services/control-plane
 ```
 
+This applies the full schema and seeds the default roles (Administrator,
+Operator, Viewer) — no separate seed step needed. See
+[`docs/data-model.md`](data-model.md) for the entity list, constraints, state
+machines, and rollback instructions (`alembic downgrade ...`).
+
+Control-plane tests (`make test-control-plane` / `pytest` in
+`services/control-plane`) run against a real Postgres — each test runs inside
+a transaction that's rolled back afterward, so the dev database is left
+untouched. Run `make migrate` at least once before `make test` so the schema
+exists.
+
 ## Building and running the Agent
 
 ```bash
