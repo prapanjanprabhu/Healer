@@ -128,11 +128,11 @@ def test_instance_cannot_go_directly_from_pending_to_running(db_session):
         repo.transition(instance, InstanceStatus.RUNNING)
 
 
-def test_agent_command_acked_is_terminal(db_session):
+def test_agent_command_succeeded_is_terminal(db_session):
     agent = make_agent(db_session)
     command = AgentCommand(
         agent_id=agent.id,
-        command_type=AgentCommandType.INSTANCE_RESTART,
+        command_type=AgentCommandType.RESTART_INSTANCE,
         payload={},
         idempotency_key=str(uuid.uuid4()),
     )
@@ -141,7 +141,9 @@ def test_agent_command_acked_is_terminal(db_session):
 
     repo = AgentCommandRepository(db_session)
     repo.transition(command, AgentCommandStatus.SENT)
-    repo.transition(command, AgentCommandStatus.ACKED)
+    repo.transition(command, AgentCommandStatus.ACKNOWLEDGED)
+    repo.transition(command, AgentCommandStatus.RUNNING)
+    repo.transition(command, AgentCommandStatus.SUCCEEDED)
 
     with pytest.raises(InvalidTransition):
         repo.transition(command, AgentCommandStatus.FAILED)
@@ -152,7 +154,7 @@ def test_agent_command_idempotency_lookup(db_session):
     key = str(uuid.uuid4())
     command = AgentCommand(
         agent_id=agent.id,
-        command_type=AgentCommandType.DEPLOY,
+        command_type=AgentCommandType.DEPLOY_RELEASE,
         payload={},
         idempotency_key=key,
     )

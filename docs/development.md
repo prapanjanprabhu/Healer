@@ -61,6 +61,16 @@ a transaction that's rolled back afterward, so the dev database is left
 untouched. Run `make migrate` at least once before `make test` so the schema
 exists.
 
+## Logging in
+
+```bash
+make bootstrap-admin   # creates the first Administrator from HEALER_BOOTSTRAP_ADMIN_EMAIL/_PASSWORD in .env
+```
+
+Then open http://localhost:3000 — you'll land on `/login`. See
+[`docs/auth.md`](auth.md) for how sessions, CSRF, roles, and the audit log
+fit together.
+
 ## Building and running the Agent
 
 ```bash

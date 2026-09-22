@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { LogoutButton } from "@/components/LogoutButton";
 import { NAV_ITEMS } from "@/lib/nav";
+import type { CurrentUser } from "@/lib/types";
 
-export function Sidebar() {
+export function Sidebar({ user }: { user: CurrentUser }) {
   return (
     <aside className="healer-sidebar">
       <div className="healer-brand">Healer</div>
@@ -16,6 +18,11 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
+      <div className="healer-sidebar-user">
+        <div className="healer-sidebar-user-email">{user.email}</div>
+        <div className="healer-sidebar-user-roles">{user.roles.join(", ")}</div>
+        <LogoutButton />
+      </div>
     </aside>
   );
 }

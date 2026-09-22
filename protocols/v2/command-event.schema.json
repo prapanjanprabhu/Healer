@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v2/command-event.schema.json",
+  "title": "agent.command_event payload v2",
+  "description": "Reported by the Agent as it progresses through a command: acknowledged when received, running once execution starts, then exactly one of succeeded/failed/timed_out. Multiple events are sent per command (a full history is kept in agent_command_events).",
+  "type": "object",
+  "required": ["command_id", "status", "occurred_at"],
+  "properties": {
+    "command_id": { "type": "string", "format": "uuid" },
+    "status": {
+      "type": "string",
+      "enum": ["acknowledged", "running", "succeeded", "failed", "timed_out"]
+    },
+    "result": {
+      "type": ["object", "null"],
+      "description": "Command-type-specific structured result, set on succeeded."
+    },
+    "error": {
+      "type": ["string", "null"],
+      "description": "Human-readable failure reason, set on failed."
+    },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

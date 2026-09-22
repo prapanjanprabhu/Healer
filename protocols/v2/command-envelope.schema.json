@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v2/command-envelope.schema.json",
+  "title": "control.command payload v2",
+  "description": "A single structured instruction sent from the Control Plane to an Agent. Supersedes v1's separate deploy_command/instance_command payloads with one generic envelope whose `type` selects the command — see the closed AgentCommandType enum. There is no shell/free-form command message anywhere in this protocol.",
+  "type": "object",
+  "required": ["command_id", "idempotency_key", "type", "payload", "created_at"],
+  "properties": {
+    "command_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Primary key of the agent_commands row this corresponds to."
+    },
+    "idempotency_key": {
+      "type": "string",
+      "description": "Caller-supplied or generated key; resubmitting the same key returns the original command instead of creating a duplicate."
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "inspect_host",
+        "validate_app",
+        "deploy_release",
+        "start_instance",
+        "stop_instance",
+        "restart_instance",
+        "inspect_instance",
+        "collect_logs",
+        "collect_metrics",
+        "update_proxy"
+      ]
+    },
+    "payload": {
+      "type": "object",
+      "description": "Command-type-specific structured fields. Never a shell command string."
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "expires_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "If no terminal event arrives before this, the Control Plane marks the command timed_out."
+    },
+    "correlation_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Optional id of the deployment/instance/etc. that triggered this command, for cross-referencing."
+    }
+  },
+  "additionalProperties": false
+}

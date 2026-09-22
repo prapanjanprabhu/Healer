@@ -5,18 +5,34 @@ This directory is the shared contract between the Control Plane and the Agent
 single service so that agents and control planes can be upgraded without
 having to move in lockstep.
 
-## Layout
+## Versions
+
+- **v1** — the Phase 1 contract-only draft. Never implemented against a real
+  connection; kept for history. It assumed enrollment happened *over* the
+  agent's WebSocket (`agent.register`, carrying the enrollment token) and
+  had separate `deploy_command`/`instance_command` payload shapes.
+- **v2** — what Phase 4 actually implements. Enrollment is a one-time REST
+  call (`POST /agents/enroll`) that happens *before* the WebSocket ever
+  opens and returns a long-lived credential; the socket itself carries only
+  `agent.hello` (capability report), `agent.heartbeat`, `control.command`
+  (one generic envelope for every structured command type), and
+  `agent.command_event`. This is a breaking change to the message set, which
+  is exactly why it's a new version directory rather than an edit to v1 —
+  see "Versioning rules" below.
+
+`protocols/v1/audit-event.schema.json` is unchanged and still current — it
+describes a Postgres row shape, not a wire message, so it isn't duplicated
+under v2.
+
+## Layout (v2)
 
 ```
-protocols/
-  v1/
-    envelope.schema.json          common message envelope, all messages use it
-    agent-register.schema.json    agent -> control plane, on connect
-    agent-heartbeat.schema.json   agent -> control plane, periodic metrics snapshot
-    deploy-command.schema.json    control plane -> agent, instructs a deployment
-    instance-command.schema.json  control plane -> agent, start/stop/restart
-    health-report.schema.json     agent -> control plane, per-instance health
-    audit-event.schema.json       control plane internal, audit log entry shape
+protocols/v2/
+  envelope.schema.json          common message envelope, all messages use it
+  agent-hello.schema.json       agent -> control plane, sent once on connect
+  agent-heartbeat.schema.json   agent -> control plane, periodic metrics snapshot
+  command-envelope.schema.json  control plane -> agent, one structured command
+  command-event.schema.json     agent -> control plane, command progress/result
 ```
 
 ## Versioning rules
@@ -28,14 +44,11 @@ protocols/
   within a version.
 - Every message carries `protocol_version` in its envelope so a receiver can
   reject or branch on an unexpected version rather than guess.
-- Phase 1 ships the schemas as the agreed contract only; the Control Plane and
-  Agent do not yet enforce or fully implement every message type — that lands
-  with deployment behavior in a later phase.
 
 ## Envelope
 
 Every message — in either direction — is wrapped in the common envelope
-defined in [`v1/envelope.schema.json`](v1/envelope.schema.json):
+defined in [`v2/envelope.schema.json`](v2/envelope.schema.json):
 
 ```json
 {
@@ -47,21 +60,17 @@ defined in [`v1/envelope.schema.json`](v1/envelope.schema.json):
 }
 ```
 
-`type` selects which payload schema applies (e.g. `agent.register`,
-`agent.heartbeat`, `control.deploy_command`, `control.instance_command`,
-`agent.health_report`).
+`type` selects which payload schema applies.
 
-## Message catalogue (V1 contract)
+## Message catalogue (v2, implemented)
 
 | `type` | Direction | Schema | Purpose |
 |---|---|---|---|
-| `agent.register` | agent → control plane | `agent-register.schema.json` | Announce a server and its capabilities when the agent connects. |
-| `agent.heartbeat` | agent → control plane | `agent-heartbeat.schema.json` | Periodic CPU/RAM/disk + per-instance status snapshot. |
-| `agent.health_report` | agent → control plane | `health-report.schema.json` | Result of a health check performed against one application instance. |
-| `control.deploy_command` | control plane → agent | `deploy-command.schema.json` | Deploy a release: source, instance count, ports, adapter type. |
-| `control.instance_command` | control plane → agent | `instance-command.schema.json` | Start / stop / restart a specific instance. |
+| `agent.hello` | agent → control plane | `agent-hello.schema.json` | Capability report, sent once right after connecting. |
+| `agent.heartbeat` | agent → control plane | `agent-heartbeat.schema.json` | Periodic CPU/RAM/disk + per-instance status; also what proves the connection is alive. |
+| `control.command` | control plane → agent | `command-envelope.schema.json` | One structured command — `type` is one of the ten closed `AgentCommandType` values. No shell/free-form command exists anywhere in this protocol. |
+| `agent.command_event` | agent → control plane | `command-event.schema.json` | Progress/result of a command: acknowledged, running, then succeeded/failed/timed_out. |
 
-`audit-event.schema.json` is not carried over the wire to the agent; it defines
-the shape the Control Plane stores in PostgreSQL for the administrative audit
-history and is documented here because it is a shared, versioned contract in
-its own right.
+Enrollment (`POST /agents/enroll`) and command submission
+(`POST /agents/{id}/commands`) are plain REST, not part of the WebSocket
+message set — see [`docs/agent-protocol.md`](../docs/agent-protocol.md).

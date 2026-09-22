@@ -38,12 +38,23 @@ INSTANCE_TRANSITIONS: dict[InstanceStatus, set[InstanceStatus]] = {
 AGENT_COMMAND_TRANSITIONS: dict[AgentCommandStatus, set[AgentCommandStatus]] = {
     AgentCommandStatus.PENDING: {AgentCommandStatus.SENT, AgentCommandStatus.EXPIRED},
     AgentCommandStatus.SENT: {
-        AgentCommandStatus.ACKED,
+        AgentCommandStatus.ACKNOWLEDGED,
         AgentCommandStatus.FAILED,
-        AgentCommandStatus.EXPIRED,
+        AgentCommandStatus.TIMED_OUT,
     },
-    AgentCommandStatus.ACKED: set(),
+    AgentCommandStatus.ACKNOWLEDGED: {
+        AgentCommandStatus.RUNNING,
+        AgentCommandStatus.FAILED,
+        AgentCommandStatus.TIMED_OUT,
+    },
+    AgentCommandStatus.RUNNING: {
+        AgentCommandStatus.SUCCEEDED,
+        AgentCommandStatus.FAILED,
+        AgentCommandStatus.TIMED_OUT,
+    },
+    AgentCommandStatus.SUCCEEDED: set(),
     AgentCommandStatus.FAILED: set(),
+    AgentCommandStatus.TIMED_OUT: set(),
     AgentCommandStatus.EXPIRED: set(),
 }
 

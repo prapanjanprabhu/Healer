@@ -20,6 +20,7 @@ help:
 	@echo "  make build-agent      Compile the Go agent binary"
 	@echo "  make agent-version    Print the compiled agent's version"
 	@echo "  make migrate          Run control-plane database migrations"
+	@echo "  make bootstrap-admin  Create the first Administrator account"
 
 ## --- setup ---------------------------------------------------------------
 
@@ -106,6 +107,9 @@ build:
 
 migrate:
 	cd services/control-plane && alembic upgrade head
+
+bootstrap-admin:
+	cd services/control-plane && python -m app.cli.bootstrap_admin
 
 ## --- agent --------------------------------------------------------------------
 

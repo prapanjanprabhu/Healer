@@ -2,7 +2,7 @@
 Alembic autogenerate (or `Base.metadata.create_all`) runs.
 """
 
-from app.db.models.agent import Agent, AgentCommand, AgentConnection, AgentEvent
+from app.db.models.agent import Agent, AgentCommand, AgentCommandEvent, AgentConnection, AgentEvent
 from app.db.models.application import Application, Configuration, Instance, Release, Source
 from app.db.models.audit import AuditLog
 from app.db.models.deployment import Deployment, DeploymentLog, DeploymentStep
@@ -17,6 +17,7 @@ from app.db.models.user import RefreshSession, Role, User, UserRole
 __all__ = [
     "Agent",
     "AgentCommand",
+    "AgentCommandEvent",
     "AgentConnection",
     "AgentEvent",
     "Application",

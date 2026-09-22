@@ -55,7 +55,16 @@ Healer V1 only reads existing CRT/KEY file paths supplied by the administrator
 (`DEFAULT_CERT_PATH`, `DEFAULT_KEY_PATH`). It never generates keys, never talks to
 an ACME provider, and never uploads private key material through the dashboard.
 
-## 6. Explicit non-goals (do not add in V1)
+## 6. Administrator sessions and CSRF
+
+Dashboard sessions use HttpOnly, `SameSite=Lax` cookies for the access and
+refresh tokens (never readable by JS, so an XSS bug can't exfiltrate them)
+plus a separate, non-HttpOnly CSRF cookie that same-origin JS must echo back
+as a header on mutating requests. Full design, rotation, and revocation
+behavior: [`docs/auth.md`](auth.md). Passwords, tokens, and secret values are
+never written to the audit log or CLI output.
+
+## 7. Explicit non-goals (do not add in V1)
 
 - No remote interactive shell to managed servers.
 - No Prometheus/Loki/Grafana ingestion endpoints.

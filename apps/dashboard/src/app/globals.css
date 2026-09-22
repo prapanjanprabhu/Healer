@@ -140,3 +140,221 @@ a {
   color: var(--healer-text-muted);
   font-size: 0.9rem;
 }
+
+.healer-sidebar-user {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--healer-border);
+}
+
+.healer-sidebar-user-email {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.healer-sidebar-user-roles {
+  font-size: 0.75rem;
+  color: var(--healer-text-muted);
+  margin-bottom: 10px;
+}
+
+.healer-logout-button {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--healer-border);
+  background: transparent;
+  color: var(--healer-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.healer-logout-button:hover {
+  border-color: var(--healer-accent);
+  color: var(--healer-accent);
+}
+
+.healer-logout-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.healer-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.healer-login-card {
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid var(--healer-border);
+  background: var(--healer-surface);
+  border-radius: 10px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+.healer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--healer-text-muted);
+  margin-bottom: 16px;
+}
+
+.healer-field input {
+  font-size: 0.95rem;
+  padding: 9px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--healer-border);
+  background: var(--healer-bg);
+  color: var(--healer-text);
+}
+
+.healer-field input:focus {
+  outline: none;
+  border-color: var(--healer-accent);
+}
+
+.healer-error {
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.healer-login-card button[type="submit"] {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: none;
+  background: var(--healer-accent);
+  color: #06111f;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.healer-login-card button[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Buttons, forms, tables — servers screens (Phase 4) */
+
+button {
+  font-family: inherit;
+}
+
+.healer-card button,
+.healer-primary-button {
+  padding: 9px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--healer-border);
+  background: var(--healer-accent);
+  color: #06111f;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.healer-card button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.healer-card select,
+.healer-card input {
+  font-size: 0.95rem;
+  padding: 9px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--healer-border);
+  background: var(--healer-bg);
+  color: var(--healer-text);
+}
+
+.healer-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.healer-table th {
+  text-align: left;
+  color: var(--healer-text-muted);
+  font-weight: 500;
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--healer-border);
+}
+
+.healer-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--healer-border);
+}
+
+.healer-table button {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--healer-border);
+  background: transparent;
+  color: var(--healer-text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.healer-badge-ok {
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+}
+
+.healer-badge-off {
+  background: rgba(139, 152, 165, 0.15);
+  color: var(--healer-text-muted);
+}
+
+.healer-definition-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.healer-definition-list dt {
+  color: var(--healer-text-muted);
+}
+
+.healer-definition-list dd {
+  margin: 0;
+}
+
+.healer-code-block {
+  background: var(--healer-bg);
+  border: 1px solid var(--healer-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+
+.healer-token-reveal {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--healer-accent);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.healer-token-reveal code {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}

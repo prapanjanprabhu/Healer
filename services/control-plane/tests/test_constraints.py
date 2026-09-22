@@ -49,7 +49,7 @@ def test_duplicate_agent_command_idempotency_key_is_rejected(db_session):
     db_session.add(
         AgentCommand(
             agent_id=agent.id,
-            command_type=AgentCommandType.INSTANCE_RESTART,
+            command_type=AgentCommandType.RESTART_INSTANCE,
             payload={},
             idempotency_key=key,
         )
@@ -61,7 +61,7 @@ def test_duplicate_agent_command_idempotency_key_is_rejected(db_session):
             db_session.add(
                 AgentCommand(
                     agent_id=agent.id,
-                    command_type=AgentCommandType.INSTANCE_RESTART,
+                    command_type=AgentCommandType.RESTART_INSTANCE,
                     payload={},
                     idempotency_key=key,
                 )
@@ -83,7 +83,7 @@ def test_agent_command_status_defaults_to_pending(db_session):
     agent = make_agent(db_session)
     command = AgentCommand(
         agent_id=agent.id,
-        command_type=AgentCommandType.DEPLOY,
+        command_type=AgentCommandType.DEPLOY_RELEASE,
         payload={"release_id": str(uuid.uuid4())},
         idempotency_key=str(uuid.uuid4()),
     )

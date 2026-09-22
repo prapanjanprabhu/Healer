@@ -73,6 +73,26 @@ Full instructions: [`docs/development.md`](docs/development.md).
   repository/service layer so API routes stay free of raw DB logic, and
   validated state machines for deployment/instance/agent-command status. See
   [`docs/data-model.md`](docs/data-model.md).
+- **Phase 3 — done:** authentication, roles, audit. Short-lived JWT access
+  cookies + revocable, rotating, DB-backed refresh sessions; double-submit
+  CSRF protection; Administrator/Operator/Viewer permission gating on
+  routes; login/refresh/logout/me endpoints; an Administrator-bootstrap CLI;
+  a dashboard login page, protected layout, and logout action; and audit
+  logging for every login attempt, logout, and permission-gated mutation
+  (never a password, token, or secret value). See
+  [`docs/auth.md`](docs/auth.md).
+- **Phase 4 — done:** server registration and the Agent protocol. Server
+  create/list/view APIs; single-use, revocable, expiring enrollment tokens;
+  an `/agents/enroll` REST call that exchanges a token for a long-lived
+  connection credential; the Agent's outbound `/ws/agent` WebSocket
+  (hello/heartbeat/command-event); heartbeat-based online/offline detection;
+  a command envelope (idempotency key, expiry, correlation id) restricted to
+  ten structured command types — no shell/free-form command exists anywhere
+  in the protocol; commands queued while an agent is offline and delivered
+  on reconnect; a fake Agent simulator (both in-process, for tests, and a
+  standalone script for real-network manual testing); and dashboard screens
+  for adding a server, enrollment instructions, and connection status. See
+  [`docs/agent-protocol.md`](docs/agent-protocol.md).
 
 Deployment behavior (actually deploying, routing, and health-driven
 remediation) is not implemented yet — that's the API/worker logic layered on

@@ -3,10 +3,14 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.security import hash_password
 from app.db.models.agent import Agent
 from app.db.models.application import Application, Release
 from app.db.models.enums import AdapterType, ReleaseStatus, ServerOS, ServerStatus
 from app.db.models.server import Server
+from app.db.models.user import Role, User, UserRole
+
+DEFAULT_TEST_PASSWORD = "correct horse battery staple"
 
 
 def make_server(session: Session, **overrides) -> Server:
@@ -54,6 +58,26 @@ def make_release(session: Session, application: Application | None = None, **ove
     session.add(release)
     session.flush()
     return release
+
+
+def make_user(
+    session: Session,
+    *,
+    email: str | None = None,
+    password: str = DEFAULT_TEST_PASSWORD,
+    role_names: tuple[str, ...] = ("Viewer",),
+) -> User:
+    email = email or f"user-{uuid.uuid4().hex[:8]}@healer.test"
+    user = User(email=email, password_hash=hash_password(password), is_active=True)
+    session.add(user)
+    session.flush()
+
+    for role_name in role_names:
+        role = session.query(Role).filter(Role.name == role_name).first()
+        assert role is not None, f"role {role_name!r} not seeded — run `alembic upgrade head`"
+        session.add(UserRole(user_id=user.id, role_id=role.id))
+    session.flush()
+    return user
 
 
 def utcnow() -> datetime:

@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v2/envelope.schema.json",
+  "title": "Healer Message Envelope v2",
+  "description": "Common envelope wrapping every message exchanged between the Control Plane and an Agent over the WebSocket connection.",
+  "type": "object",
+  "required": ["protocol_version", "message_id", "type", "timestamp", "payload"],
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "description": "Contract version, e.g. \"1.0\" (the wire-level version negotiated at connect time — independent of this schema directory's v2 label).",
+      "const": "1.0"
+    },
+    "message_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique id for this message, used for logging/idempotency."
+    },
+    "type": {
+      "type": "string",
+      "description": "Message type, selects which payload schema applies.",
+      "enum": [
+        "agent.hello",
+        "agent.heartbeat",
+        "agent.command_event",
+        "control.command"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp the message was created."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Message-type-specific body; validated against the schema named for `type`."
+    }
+  },
+  "additionalProperties": false
+}

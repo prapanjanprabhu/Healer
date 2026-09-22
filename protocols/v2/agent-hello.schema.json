@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v2/agent-hello.schema.json",
+  "title": "agent.hello payload v2",
+  "description": "Sent once, immediately after the WebSocket connects and is accepted — the Agent's capability report. Enrollment itself already happened over REST (POST /agents/enroll) before this connection was ever opened, so unlike v1's agent.register this carries no credentials.",
+  "type": "object",
+  "required": ["agent_version", "os", "arch"],
+  "properties": {
+    "agent_version": { "type": "string" },
+    "os": {
+      "type": "string",
+      "enum": ["windows", "linux"]
+    },
+    "arch": {
+      "type": "string",
+      "enum": ["amd64", "arm64"]
+    },
+    "adapters": {
+      "type": "array",
+      "description": "V1 adapters this agent can run on this host.",
+      "items": {
+        "type": "string",
+        "enum": ["windows-waitress-service", "linux-docker"]
+      }
+    }
+  },
+  "additionalProperties": false
+}

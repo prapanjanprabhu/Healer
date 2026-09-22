@@ -20,18 +20,32 @@ class AgentStatus(str, enum.Enum):
 
 
 class AgentCommandType(str, enum.Enum):
-    DEPLOY = "deploy"
-    INSTANCE_START = "instance_start"
-    INSTANCE_STOP = "instance_stop"
-    INSTANCE_RESTART = "instance_restart"
+    """The only command types an Agent will ever execute — no arbitrary
+    shell/command message exists anywhere in the protocol. See
+    protocols/v1/command-envelope.schema.json.
+    """
+
+    INSPECT_HOST = "inspect_host"
+    VALIDATE_APP = "validate_app"
+    DEPLOY_RELEASE = "deploy_release"
+    START_INSTANCE = "start_instance"
+    STOP_INSTANCE = "stop_instance"
+    RESTART_INSTANCE = "restart_instance"
+    INSPECT_INSTANCE = "inspect_instance"
+    COLLECT_LOGS = "collect_logs"
+    COLLECT_METRICS = "collect_metrics"
+    UPDATE_PROXY = "update_proxy"
 
 
 class AgentCommandStatus(str, enum.Enum):
-    PENDING = "pending"
-    SENT = "sent"
-    ACKED = "acked"
+    PENDING = "pending"  # created, not yet sent (agent was offline)
+    SENT = "sent"  # transmitted to the agent, awaiting acknowledgement
+    ACKNOWLEDGED = "acknowledged"  # agent confirmed receipt
+    RUNNING = "running"  # agent is executing it
+    SUCCEEDED = "succeeded"
     FAILED = "failed"
-    EXPIRED = "expired"
+    TIMED_OUT = "timed_out"  # expires_at passed with no terminal event
+    EXPIRED = "expired"  # expires_at passed before ever being sent
 
 
 class AdapterType(str, enum.Enum):

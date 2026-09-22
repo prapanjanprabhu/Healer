@@ -33,4 +33,8 @@ class EnrollmentToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Set when an enroll call successfully consumes the token.
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set when an administrator invalidates the token before it's used —
+    # distinct from used_at so "consumed" and "revoked" are never confused.
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
