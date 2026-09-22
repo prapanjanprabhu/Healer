@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v1/health-report.schema.json",
+  "title": "agent.health_report payload v1",
+  "description": "Result of a health check the Agent performed against one application instance, used to decide whether it stays in or is pulled from traffic.",
+  "type": "object",
+  "required": ["server_id", "instance_id", "healthy", "checked_at"],
+  "properties": {
+    "server_id": { "type": "string" },
+    "instance_id": { "type": "string" },
+    "healthy": { "type": "boolean" },
+    "checked_at": { "type": "string", "format": "date-time" },
+    "detail": {
+      "type": "string",
+      "description": "Optional human-readable reason, e.g. \"connection refused\" or \"HTTP 500\"."
+    },
+    "consecutive_failures": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Running count of consecutive failed checks, used for restart/removal thresholds."
+    }
+  },
+  "additionalProperties": false
+}

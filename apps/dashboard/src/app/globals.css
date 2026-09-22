@@ -1,0 +1,142 @@
+:root {
+  --healer-bg: #0b0f14;
+  --healer-surface: #121821;
+  --healer-border: #232c38;
+  --healer-text: #e6edf3;
+  --healer-text-muted: #8b98a5;
+  --healer-accent: #4f9dff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--healer-bg);
+  color: var(--healer-text);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.healer-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.healer-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--healer-border);
+  background: var(--healer-surface);
+  padding: 24px 16px;
+}
+
+.healer-brand {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.healer-brand-subtitle {
+  font-size: 0.75rem;
+  color: var(--healer-text-muted);
+  margin-bottom: 24px;
+}
+
+.healer-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.healer-nav-item {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--healer-text-muted);
+}
+
+.healer-nav-item:hover {
+  background: var(--healer-border);
+  color: var(--healer-text);
+}
+
+.healer-main {
+  flex: 1;
+  padding: 32px 40px;
+  max-width: 960px;
+}
+
+.healer-page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.healer-page-description {
+  color: var(--healer-text-muted);
+  margin: 0 0 32px;
+}
+
+.healer-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.healer-card {
+  display: block;
+  padding: 16px;
+  border: 1px solid var(--healer-border);
+  border-radius: 8px;
+  background: var(--healer-surface);
+}
+
+.healer-card:hover {
+  border-color: var(--healer-accent);
+}
+
+.healer-card-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.healer-card-description {
+  font-size: 0.85rem;
+  color: var(--healer-text-muted);
+}
+
+.healer-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(79, 157, 255, 0.15);
+  color: var(--healer-accent);
+  margin-bottom: 16px;
+}
+
+.healer-empty-state {
+  border: 1px dashed var(--healer-border);
+  border-radius: 8px;
+  padding: 24px;
+  color: var(--healer-text-muted);
+  font-size: 0.9rem;
+}

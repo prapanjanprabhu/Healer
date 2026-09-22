@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v1/agent-register.schema.json",
+  "title": "agent.register payload v1",
+  "description": "Sent by an Agent immediately after establishing its outbound WebSocket connection, so the Control Plane can identify the server and its capabilities.",
+  "type": "object",
+  "required": ["server_id", "enrollment_token", "hostname", "os", "arch", "agent_version"],
+  "properties": {
+    "server_id": {
+      "type": "string",
+      "description": "Stable id assigned to this server when it was registered in the dashboard."
+    },
+    "enrollment_token": {
+      "type": "string",
+      "description": "Per-server secret proving this agent is authorized to represent server_id."
+    },
+    "hostname": { "type": "string" },
+    "os": {
+      "type": "string",
+      "enum": ["windows", "linux"]
+    },
+    "arch": {
+      "type": "string",
+      "enum": ["amd64", "arm64"]
+    },
+    "agent_version": { "type": "string" },
+    "adapters": {
+      "type": "array",
+      "description": "V1 adapters this agent can run on this host.",
+      "items": {
+        "type": "string",
+        "enum": ["windows-waitress-service", "linux-docker"]
+      }
+    }
+  },
+  "additionalProperties": false
+}

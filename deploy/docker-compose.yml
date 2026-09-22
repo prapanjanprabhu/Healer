@@ -1,0 +1,105 @@
+name: healer
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-healer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-healer}
+    ports:
+      - "5432:5432"
+    volumes:
+      - healer_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-healer} -d ${POSTGRES_DB:-healer}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - healer-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - healer-net
+
+  control-plane:
+    build:
+      context: ../services/control-plane
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://healer:changeme@postgres:5432/healer}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    ports:
+      - "${CONTROL_PLANE_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../services/control-plane:/app
+    networks:
+      - healer-net
+
+  worker:
+    build:
+      context: ../services/worker
+    env_file:
+      - ../.env
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../services/worker:/app
+    networks:
+      - healer-net
+
+  dashboard:
+    build:
+      context: ../apps/dashboard
+    env_file:
+      - ../.env
+    environment:
+      NEXT_PUBLIC_CONTROL_PLANE_URL: ${NEXT_PUBLIC_CONTROL_PLANE_URL:-http://localhost:8000}
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+    depends_on:
+      - control-plane
+    networks:
+      - healer-net
+
+  # Restricted, internal-only service. Not started by `make up` / default
+  # `docker compose up` — see docs/security-boundaries.md. Bring it up
+  # explicitly with `--profile gateway` for local testing only.
+  gateway-manager:
+    profiles: ["gateway"]
+    build:
+      context: ../services/gateway-manager
+    env_file:
+      - ../.env
+    ports:
+      - "${GATEWAY_MANAGER_HOST:-127.0.0.1}:${GATEWAY_MANAGER_PORT:-8100}:8100"
+    networks:
+      - healer-net
+
+networks:
+  healer-net:
+    driver: bridge
+
+volumes:
+  healer_postgres_data:

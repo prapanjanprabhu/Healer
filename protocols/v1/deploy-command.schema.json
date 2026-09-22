@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v1/deploy-command.schema.json",
+  "title": "control.deploy_command payload v1",
+  "description": "Instructs an Agent to deploy a release of an application using the adapter appropriate to its OS. Contract only in Phase 1 — not yet sent or acted on.",
+  "type": "object",
+  "required": ["deployment_id", "application_id", "release", "adapter", "instance_count", "ports"],
+  "properties": {
+    "deployment_id": { "type": "string" },
+    "application_id": { "type": "string" },
+    "release": {
+      "type": "object",
+      "required": ["source_type", "location", "ref"],
+      "properties": {
+        "source_type": { "type": "string", "enum": ["git", "folder"] },
+        "location": { "type": "string", "description": "Repo URL or existing folder path." },
+        "ref": { "type": "string", "description": "Git ref, or a release label for a folder source." }
+      },
+      "additionalProperties": false
+    },
+    "adapter": {
+      "type": "string",
+      "enum": ["windows-waitress-service", "linux-docker"]
+    },
+    "instance_count": { "type": "integer", "minimum": 1 },
+    "ports": {
+      "type": "array",
+      "description": "Ports allocated by the Control Plane for each instance.",
+      "items": { "type": "integer", "minimum": 1, "maximum": 65535 }
+    },
+    "zero_downtime": {
+      "type": "boolean",
+      "default": true,
+      "description": "Roll instances one at a time behind the gateway rather than stopping all at once."
+    }
+  },
+  "additionalProperties": false
+}

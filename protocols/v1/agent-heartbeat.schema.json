@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v1/agent-heartbeat.schema.json",
+  "title": "agent.heartbeat payload v1",
+  "description": "Periodic basic metrics snapshot pushed directly from an Agent to the Control Plane.",
+  "type": "object",
+  "required": ["server_id", "cpu_percent", "memory_percent", "disk_percent", "instances"],
+  "properties": {
+    "server_id": { "type": "string" },
+    "cpu_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "memory_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "disk_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "instances": {
+      "type": "array",
+      "description": "Per-instance status known to this agent at heartbeat time.",
+      "items": {
+        "type": "object",
+        "required": ["instance_id", "status"],
+        "properties": {
+          "instance_id": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["running", "stopped", "starting", "unhealthy", "unknown"]
+          },
+          "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

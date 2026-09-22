@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v1/envelope.schema.json",
+  "title": "Healer Message Envelope v1",
+  "description": "Common envelope wrapping every message exchanged between the Control Plane and an Agent.",
+  "type": "object",
+  "required": ["protocol_version", "message_id", "type", "timestamp", "payload"],
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "description": "Contract version, e.g. \"1.0\".",
+      "const": "1.0"
+    },
+    "message_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique id for this message, used for logging/idempotency."
+    },
+    "type": {
+      "type": "string",
+      "description": "Message type, selects which payload schema applies.",
+      "enum": [
+        "agent.register",
+        "agent.heartbeat",
+        "agent.health_report",
+        "control.deploy_command",
+        "control.instance_command"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp the message was created."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Message-type-specific body; validated against the schema named for `type`."
+    }
+  },
+  "additionalProperties": false
+}

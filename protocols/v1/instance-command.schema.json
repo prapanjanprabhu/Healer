@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v1/instance-command.schema.json",
+  "title": "control.instance_command payload v1",
+  "description": "Instructs an Agent to start, stop or restart a specific application instance. Contract only in Phase 1 — not yet sent or acted on.",
+  "type": "object",
+  "required": ["instance_id", "action"],
+  "properties": {
+    "instance_id": { "type": "string" },
+    "action": {
+      "type": "string",
+      "enum": ["start", "stop", "restart"]
+    },
+    "reason": {
+      "type": "string",
+      "enum": ["admin_request", "failed_health_check", "rollback"],
+      "description": "Why the command was issued, kept for the audit log."
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://healer.internal/protocols/v1/audit-event.schema.json",
+  "title": "Audit event v1",
+  "description": "Shape of one administrative audit history entry stored by the Control Plane in PostgreSQL. Not sent to Agents.",
+  "type": "object",
+  "required": ["id", "actor", "action", "target_type", "target_id", "occurred_at"],
+  "properties": {
+    "id": { "type": "string" },
+    "actor": {
+      "type": "string",
+      "description": "Identifier of the administrator who performed the action (e.g. email)."
+    },
+    "action": {
+      "type": "string",
+      "description": "e.g. \"server.register\", \"application.deploy\", \"instance.restart\", \"deployment.rollback\"."
+    },
+    "target_type": {
+      "type": "string",
+      "enum": ["server", "application", "deployment", "instance", "certificate"]
+    },
+    "target_id": { "type": "string" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "detail": {
+      "type": "object",
+      "description": "Free-form, action-specific context (e.g. previous/new instance count)."
+    }
+  },
+  "additionalProperties": false
+}
