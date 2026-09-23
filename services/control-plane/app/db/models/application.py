@@ -46,6 +46,18 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     operation_lock_acquired_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Which Release Nginx currently routes to (Phase 11) — set after the
+    # first successful deploy and flipped only once a new release's
+    # instances are all health-gated healthy. gateway_service filters the
+    # upstream by this, not just "every RUNNING instance", so a blue-green
+    # switch is one atomic Nginx reload rather than a gradual mix. See
+    # app/services/release_service.py.
+    active_release_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("releases.id", ondelete="SET NULL"), nullable=True
+    )
+    # How many past releases to keep once a blue-green switch succeeds —
+    # see release_service.py:_prune_old_releases.
+    release_retention_count: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
 
 
 class Source(UUIDPrimaryKeyMixin, TimestampMixin, Base):

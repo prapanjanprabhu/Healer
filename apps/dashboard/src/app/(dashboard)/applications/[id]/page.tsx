@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { DeployPanel } from "@/components/DeployPanel";
 import { GatewayPanel } from "@/components/GatewayPanel";
 import { InstanceTable } from "@/components/InstanceTable";
+import { ReleasePanel } from "@/components/ReleasePanel";
 import { ScalePanel } from "@/components/ScalePanel";
 import { ValidatePanel } from "@/components/ValidatePanel";
 import { CONTROL_PLANE_INTERNAL_URL } from "@/lib/config";
@@ -86,7 +87,11 @@ export default async function ApplicationDetailPage({ params }: { params: { id: 
       </div>
 
       <ValidatePanel applicationId={application.id} secretNames={config.secrets} initialSecrets={secrets} />
-      <DeployPanel applicationId={application.id} />
+      {application.active_release_id ? (
+        <ReleasePanel applicationId={application.id} />
+      ) : (
+        <DeployPanel applicationId={application.id} />
+      )}
       <ScalePanel
         applicationId={application.id}
         minReplicas={application.min_replicas}

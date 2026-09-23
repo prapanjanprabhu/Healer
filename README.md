@@ -140,5 +140,16 @@ Full instructions: [`docs/development.md`](docs/development.md).
   configurable attempt limit and cooldown (never an infinite loop) with an
   administrator notification once the limit is reached. See
   [`docs/self-healing.md`](docs/self-healing.md).
+- **Phase 11 — done:** blue-green deployment and rollback.
+  `POST /applications/{id}/releases` builds a new release on separately
+  reserved ports, requires every new instance to pass its health gate
+  before atomically switching Nginx, then drains and stops the previous
+  release — a failed build, failed health check, or rejected Nginx config
+  never touches the currently active release's traffic.
+  `POST /applications/{id}/rollback` restores a previous successful release
+  through the same health-gated switch, reusing its already-built code.
+  Release retention, a fixed expand/migrate/contract advisory on every
+  deploy, and a per-deployment timeline/failure reason round it out. See
+  [`docs/blue-green-deployment.md`](docs/blue-green-deployment.md).
 
 V1 is feature-complete per the master plan.

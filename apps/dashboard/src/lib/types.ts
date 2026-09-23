@@ -65,6 +65,8 @@ export interface Application {
   min_replicas: number;
   max_replicas: number;
   desired_replicas: number;
+  active_release_id: string | null;
+  release_retention_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -122,6 +124,8 @@ export interface DeploymentDetail {
   release_id: string;
   release_version: string;
   status: "pending" | "in_progress" | "succeeded" | "failed" | "rolled_back";
+  kind: string;
+  failure_reason: string | null;
   instances: DeploymentInstance[];
   steps: DeploymentStep[];
   logs: DeploymentLogEntry[];
@@ -144,6 +148,19 @@ export interface Notification {
   notification_type: string;
   message: string;
   read_at: string | null;
+  created_at: string;
+}
+
+export interface ReleaseTriggerResponse {
+  deployment_id: string;
+  warnings: string[];
+}
+
+export interface Release {
+  id: string;
+  ref: string;
+  status: string;
+  is_active: boolean;
   created_at: string;
 }
 

@@ -40,6 +40,11 @@ class DeploymentDetailOut(BaseModel):
     release_id: uuid.UUID
     release_version: str
     status: str
+    # "deploy" (Phase 7), "scale" (Phase 9), "blue_green" or "rollback"
+    # (Phase 11) — lets the dashboard's timeline label what kind of
+    # operation this was.
+    kind: str
+    failure_reason: str | None
     # Every instance this specific Deployment created or touched — plural
     # since Phase 9: a scale operation can start or drain several at once,
     # unlike an original deploy (always exactly one).

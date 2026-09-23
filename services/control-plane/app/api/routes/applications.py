@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, require_permission, verify_csrf
-from app.db.models.application import Instance
+from app.db.models.application import Instance, Release
 from app.db.session import get_db
 from app.domain.app_validation import validate_application
 from app.domain.healer_yaml import HealerYamlParseError, parse_healer_yaml
@@ -25,6 +25,7 @@ from app.schemas.applications import (
 from app.schemas.deployments import DeployTriggerResponse
 from app.schemas.gateway import GatewaySyncResponse
 from app.schemas.healer_yaml import HealerYamlV1
+from app.schemas.releases import ReleaseOut, ReleaseTriggerResponse, RollbackRequest
 from app.schemas.scale import InstanceOut, ScaleTriggerRequest, ScaleTriggerResponse
 from app.services import (
     application_service,
@@ -32,11 +33,13 @@ from app.services import (
     deployment_service,
     gateway_service,
     lock_service,
+    release_service,
     scale_service,
     secret_service,
 )
 from app.services.deployment_service import DeploymentSetupError
 from app.services.lock_service import OperationLockHeldError
+from app.services.release_service import MIGRATION_WARNING, ReleaseSetupError
 from app.services.scale_service import ScaleSetupError
 
 router = APIRouter(prefix="/applications", tags=["applications"])
@@ -306,6 +309,142 @@ async def scale_application(
     return ScaleTriggerResponse(
         deployment_id=deployment.id, desired_replicas=payload.desired_replicas
     )
+
+
+@router.post(
+    "/{application_id}/releases",
+    response_model=ReleaseTriggerResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def deploy_new_release(
+    application_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("deploy")),
+    _csrf: None = Depends(verify_csrf),
+) -> ReleaseTriggerResponse:
+    """Blue-green update: builds a brand-new release, starts and
+    health-gates `desired_replicas` instances of it on freshly reserved
+    ports, and only then atomically switches Nginx and drains the previous
+    release — which keeps serving, untouched, until every new instance has
+    proven healthy. Requires the application to already have a first
+    successful deploy (`POST /applications/{id}/deploy`). See
+    docs/blue-green-deployment.md.
+    """
+    application = ApplicationRepository(db).get(application_id)
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
+
+    try:
+        config = application_service.config_from_application(application)
+    except ValidationError as exc:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"stored config no longer matches the current schema: {exc}",
+        ) from exc
+
+    try:
+        lock_service.acquire(db, application.id, "deploy")
+    except OperationLockHeldError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    try:
+        deployment = release_service.start_new_release(
+            db, application, config, actor_id=current_user.id
+        )
+    except ReleaseSetupError as exc:
+        lock_service.release(db, application.id)
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    audit_service.record(
+        db,
+        actor_id=current_user.id,
+        action="application.release_triggered",
+        target_type="application",
+        target_id=str(application.id),
+        detail={"deployment_id": str(deployment.id), "release_id": str(deployment.release_id)},
+    )
+
+    background_tasks.add_task(release_service.run_release_switch, db, deployment.id)
+
+    return ReleaseTriggerResponse(deployment_id=deployment.id, warnings=[MIGRATION_WARNING])
+
+
+@router.post(
+    "/{application_id}/rollback",
+    response_model=ReleaseTriggerResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def rollback_application(
+    application_id: uuid.UUID,
+    payload: RollbackRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("rollback")),
+    _csrf: None = Depends(verify_csrf),
+) -> ReleaseTriggerResponse:
+    """Restores a previous successful release through the same health-gated
+    switch `POST /releases` uses — no rebuild, since the target release's
+    code is already on disk from when it was originally deployed.
+    """
+    application = ApplicationRepository(db).get(application_id)
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
+
+    try:
+        lock_service.acquire(db, application.id, "deploy")
+    except OperationLockHeldError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    try:
+        deployment = release_service.start_rollback(
+            db, application, payload.release_id, actor_id=current_user.id
+        )
+    except ReleaseSetupError as exc:
+        lock_service.release(db, application.id)
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    audit_service.record(
+        db,
+        actor_id=current_user.id,
+        action="application.rollback_triggered",
+        target_type="application",
+        target_id=str(application.id),
+        detail={"deployment_id": str(deployment.id), "release_id": str(payload.release_id)},
+    )
+
+    background_tasks.add_task(release_service.run_release_switch, db, deployment.id)
+
+    return ReleaseTriggerResponse(deployment_id=deployment.id, warnings=[])
+
+
+@router.get("/{application_id}/releases", response_model=list[ReleaseOut])
+def list_releases(
+    application_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _current_user: CurrentUser = Depends(require_permission("view")),
+) -> list[ReleaseOut]:
+    """Every release this application has ever built (subject to
+    `release_retention_count` pruning) — the dashboard's rollback picker.
+    """
+    application = ApplicationRepository(db).get(application_id)
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
+    releases = db.scalars(
+        select(Release)
+        .where(Release.application_id == application_id)
+        .order_by(Release.created_at.desc())
+    ).all()
+    return [
+        ReleaseOut(
+            id=r.id,
+            ref=r.ref,
+            status=r.status.value,
+            is_active=(r.id == application.active_release_id),
+            created_at=r.created_at,
+        )
+        for r in releases
+    ]
 
 
 @router.get("/{application_id}/instances", response_model=list[InstanceOut])

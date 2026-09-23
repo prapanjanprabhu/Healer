@@ -18,6 +18,8 @@ class ApplicationOut(BaseModel):
     min_replicas: int
     max_replicas: int
     desired_replicas: int
+    active_release_id: uuid.UUID | None
+    release_retention_count: int
     created_at: datetime
     updated_at: datetime
 
@@ -35,6 +37,8 @@ class ApplicationOut(BaseModel):
             min_replicas=application.min_replicas,
             max_replicas=application.max_replicas,
             desired_replicas=application.desired_replicas,
+            active_release_id=application.active_release_id,
+            release_retention_count=application.release_retention_count,
             created_at=application.created_at,
             updated_at=application.updated_at,
         )

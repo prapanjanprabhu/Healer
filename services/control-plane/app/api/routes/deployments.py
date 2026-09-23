@@ -70,6 +70,8 @@ def get_deployment(
         release_id=deployment.release_id,
         release_version=release.ref if release else "",
         status=deployment.status.value,
+        kind=deployment.kind,
+        failure_reason=deployment.failure_reason,
         instances=[
             DeploymentInstanceOut(
                 id=instance.id,

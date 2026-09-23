@@ -27,6 +27,14 @@ class Deployment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     instance_count: Mapped[int] = mapped_column(Integer, nullable=False)
     zero_downtime: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # "deploy" (Phase 7 bootstrap), "scale" (Phase 9), "blue_green" or
+    # "rollback" (Phase 11) — lets the dashboard's deployment timeline and
+    # `GET /deployments` distinguish what kind of operation this was.
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="deploy")
+    # A short, human-readable summary of why a blue-green switch or rollback
+    # didn't happen — set once, alongside the terminal FAILED status; the
+    # step/log rows still have the full detail. See app/services/release_service.py.
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

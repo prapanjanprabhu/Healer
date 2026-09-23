@@ -75,7 +75,18 @@ def start_deployment(
     against this same request-scoped session — see docs/app-deployment.md
     for why that's safe (dependency cleanup runs after background tasks,
     not before).
+
+    This is the one-time bootstrap deploy only (first release, exactly one
+    instance) — once `application.active_release_id` is set, every
+    subsequent update goes through the health-gated blue-green flow
+    instead (`POST /applications/{id}/releases` — see
+    app/services/release_service.py), never this single-instance path.
     """
+    if application.active_release_id is not None:
+        raise DeploymentSetupError(
+            "application is already deployed — use POST /applications/{id}/releases "
+            "for a blue-green update, or /rollback to restore a previous release"
+        )
     if config.adapter != "windows-waitress-service" or config.windows is None:
         raise DeploymentSetupError(
             f"adapter {config.adapter!r} is not deployable yet — only "
@@ -358,6 +369,7 @@ async def run_deployment(session: Session, deployment_id: uuid.UUID) -> None:
         if start_ok:
             InstanceRepository(session).transition(instance, InstanceStatus.RUNNING)
             transition_deployment(session, deployment, DeploymentStatus.SUCCEEDED)
+            application.active_release_id = release.id
             session.commit()
             if config.domain is not None:
                 await _sync_gateway_step(session, deployment, application)

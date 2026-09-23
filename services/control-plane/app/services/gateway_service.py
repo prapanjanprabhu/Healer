@@ -32,12 +32,19 @@ class GatewaySyncResult:
 
 def _build_reload_payload(session: Session, application: Application) -> dict:
     domains = session.scalars(select(Domain).where(Domain.application_id == application.id)).all()
-    instances = session.scalars(
-        select(Instance).where(
-            Instance.application_id == application.id,
-            Instance.status == InstanceStatus.RUNNING,
-        )
-    ).all()
+    conditions = [
+        Instance.application_id == application.id,
+        Instance.status == InstanceStatus.RUNNING,
+    ]
+    # Once an application has gone through a blue-green switch (Phase 11),
+    # route only to its active release's instances — a plain "every RUNNING
+    # instance" would briefly include *both* releases mid-switch, and an
+    # atomic cutover needs exactly one release in the upstream at a time.
+    # Apps that predate active_release_id (or have never blue-green
+    # deployed) keep the original Phase 8/9 behavior.
+    if application.active_release_id is not None:
+        conditions.append(Instance.release_id == application.active_release_id)
+    instances = session.scalars(select(Instance).where(*conditions)).all()
 
     upstreams = []
     for instance in instances:
