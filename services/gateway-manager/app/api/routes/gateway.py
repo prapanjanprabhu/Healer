@@ -1,21 +1,53 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from app.core.auth import require_shared_secret
+from app.services import nginx_manager
+from app.services.nginx_manager import InvalidAppSlug
 
 router = APIRouter(dependencies=[Depends(require_shared_secret)])
 
 
-@router.post("/reload")
-def reload_gateway() -> dict:
-    """Render Nginx config from current state and reload it.
+class DomainSpec(BaseModel):
+    hostname: str = Field(min_length=1, max_length=255)
+    cert_path: str = Field(min_length=1)
+    key_path: str = Field(min_length=1)
 
-    Not implemented in Phase 1 — this endpoint is a placeholder that
-    establishes the contract (the Control Plane is the only caller, over the
-    internal network, authenticated by a shared secret). Real template
-    rendering and `nginx -s reload` land with deployment behavior in a later
-    phase.
+
+class UpstreamTarget(BaseModel):
+    host: str = Field(min_length=1)
+    port: int = Field(ge=1, le=65535)
+
+
+class ReloadRequest(BaseModel):
+    app_slug: str = Field(min_length=1, max_length=63)
+    domains: list[DomainSpec] = Field(default_factory=list)
+    upstreams: list[UpstreamTarget] = Field(default_factory=list)
+
+
+class ReloadResponse(BaseModel):
+    ok: bool
+    message: str
+
+
+@router.post("/reload", response_model=ReloadResponse)
+def reload_gateway(payload: ReloadRequest) -> ReloadResponse:
+    """Render this application's Nginx server block from Control-Plane-
+    supplied state (existing CRT/KEY paths, currently healthy instance
+    addresses), validate it with `nginx -t`, and reload the one central
+    Nginx if valid — restoring the previous working config on any failure.
+
+    Only ever writes inside the dedicated managed directory and only ever
+    runs the fixed `nginx -t` / `nginx -s reload` argument lists — never a
+    shell command and never Control-Plane-supplied config text. See
+    docs/security-boundaries.md.
     """
-    raise HTTPException(
-        status_code=501,
-        detail="gateway reload is not implemented in Healer V1 Phase 1",
-    )
+    try:
+        outcome = nginx_manager.apply(
+            payload.app_slug,
+            [d.model_dump() for d in payload.domains],
+            [u.model_dump() for u in payload.upstreams],
+        )
+    except InvalidAppSlug as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ReloadResponse(ok=outcome.ok, message=outcome.message)

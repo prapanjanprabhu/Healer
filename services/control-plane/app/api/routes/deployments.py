@@ -83,12 +83,20 @@ def get_deployment(
         ),
         steps=[
             DeploymentStepOut(
-                name=s.name, status=s.status.value, started_at=s.started_at, finished_at=s.finished_at
+                name=s.name,
+                status=s.status.value,
+                started_at=s.started_at,
+                finished_at=s.finished_at,
             )
             for s in steps
         ],
         logs=[
-            DeploymentLogOut(step_id=log_.step_id, level=log_.level, message=log_.message, created_at=log_.created_at)
+            DeploymentLogOut(
+                step_id=log_.step_id,
+                level=log_.level,
+                message=log_.message,
+                created_at=log_.created_at,
+            )
             for log_ in logs
         ],
         created_at=deployment.created_at,

@@ -21,7 +21,7 @@ from app.repositories.agent_repository import AgentRepository
 from app.repositories.deployment_repository import DeploymentRepository
 from app.repositories.instance_repository import InstanceRepository
 from app.schemas.healer_yaml import HealerYamlV1
-from app.services import application_service, command_service
+from app.services import application_service, command_service, gateway_service
 
 
 def transition_deployment(
@@ -102,7 +102,7 @@ def start_deployment(
     session.add(release)
     session.flush()
 
-    instance = _allocate_instance(
+    _allocate_instance(
         session,
         application=application,
         release=release,
@@ -185,8 +185,7 @@ def _persist_agent_outcome(session: Session, deployment: Deployment, command) ->
                 deployment_id=deployment.id,
                 level="error",
                 message=(
-                    "the Agent did not respond in time "
-                    f"(command status: {command.status.value})"
+                    "the Agent did not respond in time " f"(command status: {command.status.value})"
                 ),
             )
         )
@@ -225,7 +224,9 @@ def _persist_agent_outcome(session: Session, deployment: Deployment, command) ->
     return bool(result.get("ok", False))
 
 
-def _build_deploy_release_payload(application: Application, release: Release, config: HealerYamlV1) -> dict:
+def _build_deploy_release_payload(
+    application: Application, release: Release, config: HealerYamlV1
+) -> dict:
     return {
         "app_slug": application.slug,
         "release_version": release.ref,
@@ -250,7 +251,9 @@ def _shared_log_dir(release_dir: str) -> str:
     return str(app_dir / "shared" / "logs")
 
 
-def _build_start_instance_payload(release: Release, instance: Instance, config: HealerYamlV1) -> dict:
+def _build_start_instance_payload(
+    release: Release, instance: Instance, config: HealerYamlV1
+) -> dict:
     return {
         "service_name": instance.service_name,
         "release_dir": release.release_dir,
@@ -278,9 +281,7 @@ async def run_deployment(session: Session, deployment_id: uuid.UUID) -> None:
     if deployment is None:
         return
     release = session.get(Release, deployment.release_id)
-    instance = session.scalars(
-        select(Instance).where(Instance.release_id == release.id)
-    ).first()
+    instance = session.scalars(select(Instance).where(Instance.release_id == release.id)).first()
     application = session.get(Application, deployment.application_id)
     if release is None or instance is None or application is None:
         return
@@ -351,7 +352,45 @@ async def run_deployment(session: Session, deployment_id: uuid.UUID) -> None:
     if start_ok:
         InstanceRepository(session).transition(instance, InstanceStatus.RUNNING)
         transition_deployment(session, deployment, DeploymentStatus.SUCCEEDED)
+        session.commit()
+        if config.domain is not None:
+            await _sync_gateway_step(session, deployment, application)
     else:
         InstanceRepository(session).transition(instance, InstanceStatus.FAILED)
         transition_deployment(session, deployment, DeploymentStatus.FAILED)
+        session.commit()
+
+
+async def _sync_gateway_step(
+    session: Session, deployment: Deployment, application: Application
+) -> None:
+    """Best-effort Nginx routing sync after a successful deploy — recorded as
+    its own visible DeploymentStep/DeploymentLog, but never able to flip the
+    Deployment (already SUCCEEDED) back to FAILED: the deployed instance is
+    genuinely running regardless of whether the Gateway Manager could be
+    reached, and routing problems are a separate, always-visible concern
+    (see gateway_service.sync_gateway).
+    """
+    result = await gateway_service.sync_gateway(
+        session, application, actor_id=deployment.created_by
+    )
+    now = datetime.now(UTC)
+    step = DeploymentStep(
+        deployment_id=deployment.id,
+        name="gateway_sync",
+        status=DeploymentStepStatus.SUCCEEDED if result.ok else DeploymentStepStatus.FAILED,
+        started_at=now,
+        finished_at=now,
+    )
+    session.add(step)
+    session.flush()
+    session.add(
+        DeploymentLog(
+            deployment_id=deployment.id,
+            step_id=step.id,
+            level="info" if result.ok else "error",
+            message=result.message
+            or ("gateway routing updated" if result.ok else "gateway sync failed"),
+        )
+    )
     session.commit()

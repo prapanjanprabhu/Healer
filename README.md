@@ -107,7 +107,23 @@ Full instructions: [`docs/development.md`](docs/development.md).
   11 machine (installed and ran as an actual Windows Service) and a real
   Linux container (systemd-style `SIGTERM` shutdown). See
   [`docs/agent-runtime.md`](docs/agent-runtime.md).
+- **Phase 6 — done:** application validation. `POST /applications/{id}/validate`
+  runs domain-uniqueness, secret-existence, port-bookkeeping, certificate-pair
+  (via the Gateway Manager), and live filesystem/interpreter/Docker/port
+  checks on the target Agent — all through the existing structured command
+  protocol, never a shell command. See [`docs/app-validation.md`](docs/app-validation.md).
+- **Phase 7 — done:** the Windows Django/Waitress deployment adapter.
+  `POST /applications/{id}/deploy` snapshots a release, creates a
+  release-scoped venv, installs requirements, runs Django check/migrate/
+  collectstatic, allocates one free port transactionally, and creates a
+  low-privilege Windows Service running Waitress — every step recorded as a
+  `DeploymentStep`/`DeploymentLog`. See [`docs/app-deployment.md`](docs/app-deployment.md).
+- **Phase 8 — done:** the restricted Gateway Manager and central Nginx
+  routing. One upstream per application (`least_conn`, keepalive, standard
+  proxy headers) rendered from existing CRT/KEY paths and the application's
+  currently-healthy instances; `nginx -t`-validated, atomically activated,
+  and automatically restored to the last working config on any validation or
+  reload failure. See [`docs/gateway-routing.md`](docs/gateway-routing.md).
 
-Deployment behavior (actually deploying, routing, and health-driven
-remediation) is not implemented yet — that's the API/worker logic layered on
-top of this schema in a later phase.
+Health-driven remediation and multi-instance/zero-downtime rollout are not
+implemented yet — later phases.

@@ -18,8 +18,11 @@ kept deliberately small and isolated:
 - It has no database access and no agent connections. Its only job is: accept a
   rendering/reload instruction from the Control Plane, validate it, write Nginx
   config, reload Nginx.
-- V1 ships only the service skeleton (`/health` plus a stubbed, not-yet-implemented
-  reload endpoint) — actual Nginx template rendering is a later phase.
+- `POST /reload` (Phase 8) renders one application's Nginx server block from
+  structured `app_slug`/`domains`/`upstreams` fields only — never raw config
+  text or a shell command — validates with `nginx -t`, and restores the
+  previous working config on any validation or reload failure. See
+  [`docs/gateway-routing.md`](gateway-routing.md).
 
 ## 2. Agents are outbound-only
 

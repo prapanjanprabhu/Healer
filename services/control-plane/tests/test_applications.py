@@ -1,6 +1,8 @@
 import threading
 import uuid
 
+from app.services import gateway_service
+from app.services.gateway_service import GatewaySyncResult
 from tests.support.auth import login_as
 from tests.support.csrf import csrf_headers
 from tests.support.fake_agent import FakeAgent
@@ -295,3 +297,48 @@ def test_viewer_can_run_validate(client, db_session):
     login_as(client, db_session, role="Viewer", email="viewer-validate@healer.test")
     response = client.post(f"/applications/{application_id}/validate")
     assert response.status_code == 200
+
+
+# --- gateway sync -------------------------------------------------------------
+
+
+def test_gateway_sync_endpoint_returns_the_gateway_managers_outcome(
+    client, db_session, monkeypatch
+):
+    async def fake_sync_gateway(session, application, *, actor_id=None, transport=None):
+        return GatewaySyncResult(ok=True, message="activated and reloaded")
+
+    monkeypatch.setattr(gateway_service, "sync_gateway", fake_sync_gateway)
+
+    server_id = _register_server(client, db_session)
+    login_as(client, db_session, role="Operator", email="operator-gateway-endpoint@healer.test")
+    create = client.post("/applications", json=_config_for(server_id), headers=csrf_headers(client))
+    application_id = create.json()["id"]
+
+    response = client.post(
+        f"/applications/{application_id}/gateway/sync", headers=csrf_headers(client)
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ok": True, "message": "activated and reloaded"}
+
+
+def test_gateway_sync_endpoint_returns_404_for_an_unknown_application(client, db_session):
+    login_as(client, db_session, role="Operator", email="operator-gateway-404@healer.test")
+    response = client.post(
+        f"/applications/{uuid.uuid4()}/gateway/sync", headers=csrf_headers(client)
+    )
+    assert response.status_code == 404
+
+
+def test_viewer_cannot_trigger_a_gateway_sync(client, db_session):
+    server_id = _register_server(client, db_session)
+    login_as(client, db_session, role="Operator", email="operator-gateway-viewer-setup@healer.test")
+    create = client.post("/applications", json=_config_for(server_id), headers=csrf_headers(client))
+    application_id = create.json()["id"]
+
+    login_as(client, db_session, role="Viewer", email="viewer-gateway-sync@healer.test")
+    response = client.post(
+        f"/applications/{application_id}/gateway/sync", headers=csrf_headers(client)
+    )
+    assert response.status_code == 403

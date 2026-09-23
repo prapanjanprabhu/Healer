@@ -27,7 +27,7 @@ directly (see `app/repositories/base.py`).
 | `agents`, `agent_connections`, `agent_commands`, `agent_events` | One Agent identity per server; connection history; commands sent to the Agent (idempotency-keyed); events reported back. |
 | `applications`, `sources`, `configurations`, `releases`, `instances` | An application, where its code comes from, its config, its releases, and the running instances (server + port) for a release. |
 | `deployments`, `deployment_steps`, `deployment_logs` | A deploy of one release with a target instance count; its steps and log lines. |
-| `domains`, `upstream_groups`, `upstream_instances` | The hostname an application answers on and which instances sit behind it — feeds the Gateway Manager (Phase 1 scope: reference model only, not yet rendered). |
+| `domains`, `upstream_groups`, `upstream_instances` | The hostname an application answers on and which instances sit behind it, and its existing CRT/KEY paths — `domains` feeds the Gateway Manager (see [`docs/gateway-routing.md`](../docs/gateway-routing.md)); `upstream_groups`/`upstream_instances` exist in the schema but aren't populated yet (V1 computes upstream membership directly from `instances` at sync time). |
 | `health_checks`, `health_check_results` | Per-application health check configuration and per-instance results. |
 | `secret_records` | Encrypted application/global secrets (`encrypted_value` — encryption itself is implemented when secrets management ships). |
 | `metrics_snapshots` | Periodic CPU/RAM/disk snapshots per server, pushed by the Agent. |

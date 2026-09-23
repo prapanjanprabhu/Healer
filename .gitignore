@@ -31,6 +31,9 @@ agent/bin/
 deploy/data/
 postgres-data/
 
+# Local CRT/KEY material mounted into the Gateway Manager — never committed.
+deploy/certs/
+
 # Editors / OS
 .vscode/*
 !.vscode/extensions.json

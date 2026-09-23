@@ -99,6 +99,14 @@ services:
       - ../.env
     ports:
       - "${GATEWAY_MANAGER_HOST:-127.0.0.1}:${GATEWAY_MANAGER_PORT:-8100}:8100"
+      # The one central Nginx this service manages — its own listeners, not
+      # the FastAPI control port above.
+      - "${GATEWAY_HTTP_PORT:-8080}:80"
+      - "${GATEWAY_HTTPS_PORT:-8443}:443"
+    volumes:
+      # Existing CRT/KEY files only — see docs/security-boundaries.md. This
+      # service never generates or uploads certificate material.
+      - ../deploy/certs:/etc/healer/certs:ro
     networks:
       - healer-net
 

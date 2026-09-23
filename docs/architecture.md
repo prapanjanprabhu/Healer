@@ -61,7 +61,7 @@ proxy live requests itself.
 | `apps/dashboard` | Next.js + React + TypeScript | Admin UI: servers, applications, deployments, health, certificates, audit log. Talks only to the Control Plane API. |
 | `services/control-plane` | FastAPI | Source of truth. Owns the Postgres schema, issues jobs to Celery, holds agent WebSocket connections, is the only caller of the Gateway Manager. |
 | `services/worker` | Celery (Python) | Executes durable, potentially long-running jobs (deploys, rollbacks, restarts, port allocation, health-driven remediation) off the request path. |
-| `services/gateway-manager` | Restricted service (FastAPI skeleton in V1) | The *only* component permitted to write Nginx configuration and trigger a reload. Deliberately isolated — see `docs/security-boundaries.md`. |
+| `services/gateway-manager` | Restricted service (FastAPI + a colocated Nginx) | The *only* component permitted to write Nginx configuration and trigger a reload. Deliberately isolated — see `docs/security-boundaries.md` and `docs/gateway-routing.md`. |
 | `agent` | Go binary | Runs on each managed Windows/Linux server. Connects outbound to the Control Plane over a secure WebSocket, executes the Windows/Linux V1 adapters, reports health and metrics snapshots. |
 | `protocols` | JSON Schema | Versioned message contracts shared between the Control Plane and the Agent (and, indirectly, the Gateway Manager). |
 

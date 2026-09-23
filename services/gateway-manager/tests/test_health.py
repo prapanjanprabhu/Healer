@@ -14,10 +14,5 @@ def test_health_returns_ok() -> None:
 
 
 def test_reload_requires_the_shared_secret() -> None:
-    response = client.post("/reload")
+    response = client.post("/reload", json={"app_slug": "acme"})
     assert response.status_code == 401
-
-
-def test_reload_not_implemented_in_phase_1() -> None:
-    response = client.post("/reload", headers=AUTH_HEADERS)
-    assert response.status_code == 501

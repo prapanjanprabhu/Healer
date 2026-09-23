@@ -1,8 +1,11 @@
 # Application deployment (Windows / Django+Waitress)
 
-Phase 7 turns a saved, validated application into one running instance. It
-never touches Nginx and never runs more than one instance per deploy — see
-`docs/healer-yaml.md` and `docs/app-validation.md` for what came before.
+Phase 7 turns a saved, validated application into one running instance, and
+never runs more than one instance per deploy — see `docs/healer-yaml.md` and
+`docs/app-validation.md` for what came before. It does not itself touch
+Nginx; a successful deploy separately triggers a `gateway_sync` step (Phase
+8) if the application has a domain configured — see
+[`docs/gateway-routing.md`](gateway-routing.md).
 
 ## Trigger
 

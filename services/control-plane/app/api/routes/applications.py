@@ -23,8 +23,15 @@ from app.schemas.applications import (
     ValidationResponse,
 )
 from app.schemas.deployments import DeployTriggerResponse
+from app.schemas.gateway import GatewaySyncResponse
 from app.schemas.healer_yaml import HealerYamlV1
-from app.services import application_service, audit_service, deployment_service, secret_service
+from app.services import (
+    application_service,
+    audit_service,
+    deployment_service,
+    gateway_service,
+    secret_service,
+)
 from app.services.deployment_service import DeploymentSetupError
 
 router = APIRouter(prefix="/applications", tags=["applications"])
@@ -155,7 +162,11 @@ async def validate_application_endpoint(
     )
 
 
-@router.post("/{application_id}/deploy", response_model=DeployTriggerResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/{application_id}/deploy",
+    response_model=DeployTriggerResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def deploy_application(
     application_id: uuid.UUID,
     background_tasks: BackgroundTasks,
@@ -211,6 +222,26 @@ async def deploy_application(
         port=instance.port,
         service_name=instance.service_name,
     )
+
+
+@router.post("/{application_id}/gateway/sync", response_model=GatewaySyncResponse)
+async def sync_gateway_endpoint(
+    application_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("deploy")),
+    _csrf: None = Depends(verify_csrf),
+) -> GatewaySyncResponse:
+    """Re-renders and reloads this application's Nginx routing on the Gateway
+    Manager from current Domain/Instance state, without running a new
+    deployment. Useful after editing domain/certificate config, or to retry
+    a routing sync that failed during a deploy. See docs/gateway-routing.md.
+    """
+    application = ApplicationRepository(db).get(application_id)
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
+
+    result = await gateway_service.sync_gateway(db, application, actor_id=current_user.id)
+    return GatewaySyncResponse(ok=result.ok, message=result.message)
 
 
 @router.post("/{application_id}/secrets", status_code=status.HTTP_204_NO_CONTENT)

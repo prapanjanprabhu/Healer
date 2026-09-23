@@ -1,16 +1,16 @@
 import threading
 import uuid
 
-from tests.support.auth import login_as
-from tests.support.csrf import csrf_headers
-from tests.support.fake_agent import FakeAgent
-
 from app.db.models.application import Instance
 from app.db.models.enums import AgentStatus, InstanceStatus
 from app.schemas.healer_yaml import HealerYamlV1
-from app.services import application_service, deployment_service
+from app.services import application_service, deployment_service, gateway_service
 from app.services.deployment_service import DeploymentSetupError
+from app.services.gateway_service import GatewaySyncResult
 from tests.factories import make_agent, make_server
+from tests.support.auth import login_as
+from tests.support.csrf import csrf_headers
+from tests.support.fake_agent import FakeAgent
 
 WINDOWS_CONFIG = {
     "version": 1,
@@ -262,8 +262,16 @@ def test_deploy_endpoint_reports_a_failed_step_and_never_starts_the_instance(cli
                 "status": "failed",
                 "message": "could not find a version that satisfies the requirement Django",
             },
-            {"name": "django_check", "status": "skipped", "message": "skipped after an earlier step failed"},
-            {"name": "migrate", "status": "skipped", "message": "skipped after an earlier step failed"},
+            {
+                "name": "django_check",
+                "status": "skipped",
+                "message": "skipped after an earlier step failed",
+            },
+            {
+                "name": "migrate",
+                "status": "skipped",
+                "message": "skipped after an earlier step failed",
+            },
             {
                 "name": "collectstatic",
                 "status": "skipped",
@@ -301,7 +309,139 @@ def test_deploy_endpoint_reports_a_failed_step_and_never_starts_the_instance(cli
     by_name = {s["name"]: s["status"] for s in detail["steps"]}
     assert by_name["pip_install"] == "failed"
     assert by_name["django_check"] == "skipped"
-    assert "service_install" not in by_name, "start_instance must never run after deploy_release fails"
+    assert (
+        "service_install" not in by_name
+    ), "start_instance must never run after deploy_release fails"
+
+
+def test_deploy_endpoint_syncs_the_gateway_when_a_domain_is_configured(
+    client, db_session, monkeypatch
+):
+    calls = []
+
+    async def fake_sync_gateway(session, application, *, actor_id=None, transport=None):
+        calls.append(application.slug)
+        return GatewaySyncResult(ok=True, message="activated and reloaded")
+
+    monkeypatch.setattr(gateway_service, "sync_gateway", fake_sync_gateway)
+    monkeypatch.setattr(deployment_service.gateway_service, "sync_gateway", fake_sync_gateway)
+
+    server_id = _register_server(client, db_session)
+    token_response = client.post(
+        f"/servers/{server_id}/enrollment-tokens", headers=csrf_headers(client)
+    )
+    raw_token = token_response.json()["token"]
+    enrolled = client.post("/agents/enroll", json={"token": raw_token}).json()
+    credential = enrolled["credential"]
+
+    login_as(client, db_session, role="Operator", email="operator-gateway-sync@healer.test")
+    create = client.post(
+        "/applications",
+        json=_config_for(server_id, domain={"hostname": "erp-sync.ritrjpm.edu.in"}),
+        headers=csrf_headers(client),
+    )
+    application_id = create.json()["id"]
+
+    with client.websocket_connect(
+        "/ws/agent", headers={"Authorization": f"Bearer {credential}"}
+    ) as ws:
+        fake = FakeAgent(ws, os="windows", arch="amd64", adapters=["windows-waitress-service"])
+        fake.hello()
+
+        def respond():
+            deploy_command = fake.receive_command()
+            fake.send_event(deploy_command["command_id"], "acknowledged")
+            fake.send_event(deploy_command["command_id"], "running")
+            fake.send_event(
+                deploy_command["command_id"], "succeeded", result=_deploy_release_success_result()
+            )
+
+            start_command = fake.receive_command()
+            fake.send_event(start_command["command_id"], "acknowledged")
+            fake.send_event(start_command["command_id"], "running")
+            fake.send_event(
+                start_command["command_id"],
+                "succeeded",
+                result=_start_instance_success_result(start_command["payload"]["service_name"]),
+            )
+
+        responder = threading.Thread(target=respond)
+        responder.start()
+
+        deploy_response = client.post(
+            f"/applications/{application_id}/deploy", headers=csrf_headers(client)
+        )
+        responder.join(timeout=10)
+
+    detail = client.get(f"/deployments/{deploy_response.json()['deployment_id']}").json()
+    assert detail["status"] == "succeeded"
+    by_name = {s["name"]: s["status"] for s in detail["steps"]}
+    assert by_name["gateway_sync"] == "succeeded"
+    assert len(calls) == 1
+
+
+def test_deploy_endpoint_stays_succeeded_even_if_the_gateway_sync_fails(
+    client, db_session, monkeypatch
+):
+    async def failing_sync_gateway(session, application, *, actor_id=None, transport=None):
+        return GatewaySyncResult(ok=False, message="could not reach the Gateway Manager: boom")
+
+    monkeypatch.setattr(deployment_service.gateway_service, "sync_gateway", failing_sync_gateway)
+
+    server_id = _register_server(client, db_session)
+    token_response = client.post(
+        f"/servers/{server_id}/enrollment-tokens", headers=csrf_headers(client)
+    )
+    raw_token = token_response.json()["token"]
+    enrolled = client.post("/agents/enroll", json={"token": raw_token}).json()
+    credential = enrolled["credential"]
+
+    login_as(client, db_session, role="Operator", email="operator-gateway-sync-fail@healer.test")
+    create = client.post(
+        "/applications",
+        json=_config_for(server_id, domain={"hostname": "erp-sync-fail.ritrjpm.edu.in"}),
+        headers=csrf_headers(client),
+    )
+    application_id = create.json()["id"]
+
+    with client.websocket_connect(
+        "/ws/agent", headers={"Authorization": f"Bearer {credential}"}
+    ) as ws:
+        fake = FakeAgent(ws, os="windows", arch="amd64", adapters=["windows-waitress-service"])
+        fake.hello()
+
+        def respond():
+            deploy_command = fake.receive_command()
+            fake.send_event(deploy_command["command_id"], "acknowledged")
+            fake.send_event(deploy_command["command_id"], "running")
+            fake.send_event(
+                deploy_command["command_id"], "succeeded", result=_deploy_release_success_result()
+            )
+
+            start_command = fake.receive_command()
+            fake.send_event(start_command["command_id"], "acknowledged")
+            fake.send_event(start_command["command_id"], "running")
+            fake.send_event(
+                start_command["command_id"],
+                "succeeded",
+                result=_start_instance_success_result(start_command["payload"]["service_name"]),
+            )
+
+        responder = threading.Thread(target=respond)
+        responder.start()
+
+        deploy_response = client.post(
+            f"/applications/{application_id}/deploy", headers=csrf_headers(client)
+        )
+        responder.join(timeout=10)
+
+    detail = client.get(f"/deployments/{deploy_response.json()['deployment_id']}").json()
+    assert (
+        detail["status"] == "succeeded"
+    ), "the instance is genuinely running regardless of routing"
+    assert detail["instance"]["status"] == "running"
+    by_name = {s["name"]: s["status"] for s in detail["steps"]}
+    assert by_name["gateway_sync"] == "failed"
 
 
 def test_viewer_cannot_trigger_a_deploy(client, db_session):
@@ -320,9 +460,7 @@ def test_viewer_cannot_trigger_a_deploy(client, db_session):
         login_as(client, db_session, role="Viewer", email="viewer-deploy@healer.test")
 
     application_id = create_response.json()["id"]
-    response = client.post(
-        f"/applications/{application_id}/deploy", headers=csrf_headers(client)
-    )
+    response = client.post(f"/applications/{application_id}/deploy", headers=csrf_headers(client))
     assert response.status_code == 403
 
 

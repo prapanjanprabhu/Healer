@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { DeployPanel } from "@/components/DeployPanel";
+import { GatewayPanel } from "@/components/GatewayPanel";
 import { ValidatePanel } from "@/components/ValidatePanel";
 import { CONTROL_PLANE_INTERNAL_URL } from "@/lib/config";
 import type { Application, SecretKey } from "@/lib/types";
@@ -79,6 +80,9 @@ export default async function ApplicationDetailPage({ params }: { params: { id: 
 
       <ValidatePanel applicationId={application.id} secretNames={config.secrets} initialSecrets={secrets} />
       <DeployPanel applicationId={application.id} />
+      {config.domain?.hostname && (
+        <GatewayPanel applicationId={application.id} hostname={config.domain.hostname} />
+      )}
     </div>
   );
 }
