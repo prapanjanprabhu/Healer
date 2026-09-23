@@ -1,5 +1,6 @@
 pytest==8.3.3
-httpx==0.27.2
+# httpx is now a runtime dependency (requirements.txt) — used both by
+# TestClient here and by the real gateway-manager HTTP client.
 ruff==0.6.9
 black==24.8.0
 mypy==1.11.2

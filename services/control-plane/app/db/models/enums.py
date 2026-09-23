@@ -56,6 +56,8 @@ class AdapterType(str, enum.Enum):
 class SourceType(str, enum.Enum):
     GIT = "git"
     FOLDER = "folder"
+    DOCKERFILE = "dockerfile"  # a folder/git checkout containing a Dockerfile
+    IMAGE = "image"  # a pre-built image reference, no source code at all
 
 
 class ReleaseStatus(str, enum.Enum):

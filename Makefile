@@ -1,5 +1,9 @@
 \
-COMPOSE_FILE := deploy/docker-compose.yml
+# The root docker-compose.yml (which just includes deploy/docker-compose.yml)
+# is used here — and should be used for any manual `docker compose ...` too —
+# so Compose's .env auto-discovery finds the real .env at the repo root
+# instead of silently defaulting every ${VAR:-fallback} in the compose file.
+COMPOSE_FILE := docker-compose.yml
 ENV_FILE := .env
 
 .PHONY: help setup setup-dashboard setup-control-plane setup-worker setup-gateway-manager setup-agent \

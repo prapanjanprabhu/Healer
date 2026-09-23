@@ -1,0 +1,16 @@
+# Lets `docker compose up -d` (no extra flags) work correctly from the repo
+# root. Compose resolves the project directory — and therefore where it
+# looks for a `.env` file — from wherever the *first* compose file it reads
+# lives. Without this file, that's `deploy/`, which has no `.env`; Compose
+# then silently falls back to every `${VAR:-default}` default in
+# deploy/docker-compose.yml (e.g. the Postgres password), which is exactly
+# what caused repeated "password authentication failed" incidents — the
+# actual Postgres role kept its real password, but the app containers
+# quietly picked up "changeme" instead of what's really in .env.
+#
+# `include:` (Compose v2.20+) pulls in the real service definitions while
+# keeping this directory — where .env actually lives — as the project
+# directory, so the values in .env are always the ones used.
+name: healer
+include:
+  - deploy/docker-compose.yml

@@ -269,13 +269,55 @@ button {
 }
 
 .healer-card select,
-.healer-card input {
+.healer-card input,
+.healer-card textarea {
   font-size: 0.95rem;
   padding: 9px 10px;
   border-radius: 6px;
   border: 1px solid var(--healer-border);
   background: var(--healer-bg);
   color: var(--healer-text);
+  font-family: inherit;
+}
+
+.healer-card textarea {
+  resize: vertical;
+}
+
+.healer-issue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.healer-issue {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  border-left: 3px solid var(--healer-border);
+}
+
+.healer-issue-error {
+  border-left-color: #f85149;
+  background: rgba(248, 81, 73, 0.1);
+}
+
+.healer-issue-warning {
+  border-left-color: #d29922;
+  background: rgba(210, 153, 34, 0.1);
+}
+
+.healer-issue-info {
+  border-left-color: var(--healer-accent);
+  background: rgba(79, 157, 255, 0.08);
+}
+
+.healer-issue-field {
+  font-weight: 600;
+  margin-right: 6px;
 }
 
 .healer-table {

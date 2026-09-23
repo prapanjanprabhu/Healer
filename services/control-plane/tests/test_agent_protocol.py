@@ -3,19 +3,12 @@ from datetime import UTC, datetime, timedelta
 
 from app.core.security import hash_token
 from app.db.models.server import EnrollmentToken
-from tests.factories import DEFAULT_TEST_PASSWORD, make_server, make_user
+from tests.factories import DEFAULT_TEST_PASSWORD, make_server
+from tests.support.auth import login_as as _login_as
 from tests.support.csrf import csrf_headers
 from tests.support.fake_agent import FakeAgent
 
 PASSWORD = DEFAULT_TEST_PASSWORD
-
-
-def _login_as(client, db_session, *, role: str, email: str | None = None):
-    email = email or f"{role.lower()}-{uuid.uuid4().hex[:6]}@healer.test"
-    user = make_user(db_session, email=email, role_names=(role,))
-    response = client.post("/auth/login", json={"email": user.email, "password": PASSWORD})
-    assert response.status_code == 200
-    return user
 
 
 def _register_server_and_token(client, db_session) -> tuple[str, str]:

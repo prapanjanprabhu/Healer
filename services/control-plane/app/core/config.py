@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # there's no local TLS termination.
     agent_ws_public_url: str = "ws://localhost:8000/ws/agent"
 
+    # Gateway Manager (Phase 6 needs it for certificate-pair validation).
+    # Restricted/internal-only — see docs/security-boundaries.md. Only the
+    # Control Plane ever calls it, authenticated with this shared secret.
+    gateway_manager_internal_url: str = "http://gateway-manager:8100"
+    gateway_manager_shared_secret: str = "change-me-internal-secret"
+
     service_name: str = "control-plane"
     service_version: str = "0.1.0"
 

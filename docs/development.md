@@ -29,6 +29,27 @@ make logs        # tail logs
 make down        # stop everything
 ```
 
+No `make` available (e.g. plain Windows without Git Bash/WSL)? Run the
+equivalent `docker compose` commands directly **from the repo root**:
+
+```bash
+docker compose up -d --build   # start
+docker compose logs -f         # tail logs
+docker compose down            # stop
+```
+
+No `-f`/`--env-file` flags needed — the root `docker-compose.yml` (which just
+`include:`s `deploy/docker-compose.yml`) makes Compose treat the repo root as
+the project directory, so it finds the real `.env` there automatically. This
+matters: without it, running `docker compose -f deploy/docker-compose.yml ...`
+by hand (without also remembering `--env-file .env`) makes Compose look for
+`deploy/.env` instead, silently fall back to every hardcoded
+`${VAR:-default}` in the compose file, and produce a very confusing
+"password authentication failed for user healer" — the database keeps its
+real password, but the app containers pick up the wrong one. Always run
+`docker compose` from the repo root (using the root `docker-compose.yml`),
+not from inside `deploy/`.
+
 Once up:
 
 - Dashboard: http://localhost:3000
@@ -36,12 +57,12 @@ Once up:
 - Postgres: localhost:5432 (`healer` / see `.env`)
 - Redis: localhost:6379
 
-The Gateway Manager is intentionally **not** started by `make up` — see
+The Gateway Manager is intentionally **not** started by default — see
 [`docs/security-boundaries.md`](security-boundaries.md). Start it explicitly (for
 local testing only) with:
 
 ```bash
-docker compose -f deploy/docker-compose.yml --env-file .env --profile gateway up -d --build gateway-manager
+docker compose --profile gateway up -d --build gateway-manager
 ```
 
 ## Database migrations

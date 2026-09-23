@@ -2,12 +2,12 @@
 // set of structured command types the protocol defines — there is no path
 // from a received message to running an arbitrary shell command.
 //
-// Phase 5 registers only inspect_host (a safe, read-only command, useful
-// for proving the protocol end to end). The other nine types are
-// recognized — they're part of the closed protocol — but not yet
-// implemented: application deployment handlers are a later phase. A
-// request for one of them is rejected with a distinct, safe error rather
-// than silently doing nothing or falling through to something dangerous.
+// Phase 5 registered inspect_host and validate_app; Phase 7 adds the
+// Windows Django/Waitress deployment handlers (deploy_release,
+// start_instance, stop_instance). The remaining types are recognized —
+// they're part of the closed protocol — but not yet implemented. A request
+// for one of them is rejected with a distinct, safe error rather than
+// silently doing nothing or falling through to something dangerous.
 package dispatcher
 
 import (
@@ -43,10 +43,16 @@ type Dispatcher struct {
 	handlers map[string]Handler
 }
 
-// New returns a Dispatcher with the Phase 5 handler set registered.
+// New returns a Dispatcher with every handler this Agent build implements
+// registered. Command types not registered here are recognized (part of
+// the closed protocol) but rejected as ErrNotImplemented — see Dispatch.
 func New() *Dispatcher {
 	d := &Dispatcher{handlers: make(map[string]Handler)}
 	d.Register(protocol.CommandInspectHost, HandleInspectHost)
+	d.Register(protocol.CommandValidateApp, HandleValidateApp)
+	d.Register(protocol.CommandDeployRelease, HandleDeployRelease)
+	d.Register(protocol.CommandStartInstance, HandleStartInstance)
+	d.Register(protocol.CommandStopInstance, HandleStopInstance)
 	return d
 }
 

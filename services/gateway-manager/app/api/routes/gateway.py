@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-router = APIRouter()
+from app.core.auth import require_shared_secret
+
+router = APIRouter(dependencies=[Depends(require_shared_secret)])
 
 
 @router.post("/reload")

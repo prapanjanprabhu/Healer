@@ -37,7 +37,12 @@ services:
     env_file:
       - ../.env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://healer:changeme@postgres:5432/healer}
+      # Built directly from the POSTGRES_* values below rather than a
+      # separately-maintained DATABASE_URL — two fields that have to be kept
+      # in sync by hand WILL drift (this bit us repeatedly: edit
+      # POSTGRES_PASSWORD, forget DATABASE_URL, get a password-auth failure
+      # after the next container recreation). One source of truth instead.
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-healer}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-healer}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     ports:
       - "${CONTROL_PLANE_PORT:-8000}:8000"

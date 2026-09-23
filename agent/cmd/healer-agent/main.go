@@ -4,8 +4,10 @@
 //
 // Phase 5 scope: enrollment, the persistent connection (reconnect with
 // backoff, heartbeat, capability reporting), the local command journal,
-// and OS service installation. It does not implement application
-// deployment handlers — see internal/dispatcher.
+// and OS service installation. Phase 7 adds the Windows Django/Waitress
+// deployment handlers and the `instance-host` subcommand that supervises a
+// deployed instance under the Windows Service Control Manager — see
+// internal/dispatcher and internal/instancehost.
 package main
 
 import (
@@ -24,6 +26,7 @@ import (
 	"github.com/healer-platform/agent/internal/credentials"
 	"github.com/healer-platform/agent/internal/dispatcher"
 	"github.com/healer-platform/agent/internal/enroll"
+	"github.com/healer-platform/agent/internal/instancehost"
 	"github.com/healer-platform/agent/internal/journal"
 	"github.com/healer-platform/agent/internal/logging"
 	"github.com/healer-platform/agent/internal/service"
@@ -53,6 +56,8 @@ func run(args []string) error {
 		return runAgent(args[1:])
 	case "service":
 		return runServiceCommand(args[1:])
+	case "instance-host":
+		return runInstanceHost(args[1:])
 	default:
 		printUsage()
 		return fmt.Errorf("unknown command %q", args[0])
@@ -168,6 +173,44 @@ func runAgent(args []string) error {
 		return nil
 	}
 	return err
+}
+
+// runInstanceHost supervises one application instance process under the
+// Windows Service Control Manager. It is intentionally absent from
+// printUsage: it is not an operator command, it is the binary+args the
+// per-instance services created by start_instance are registered with.
+//
+// This path deliberately skips enrollment, the WebSocket connection, the
+// journal and the dispatcher entirely — it exists only to keep one child
+// process alive under SCM supervision.
+func runInstanceHost(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: healer-agent instance-host <launch-spec.json>")
+	}
+
+	spec, err := instancehost.LoadSpec(args[0])
+	if err != nil {
+		return err
+	}
+	hostInstance := instancehost.Run(spec)
+
+	isService, err := service.IsHostedByServiceManager()
+	if err != nil {
+		isService = false // best-effort — fall back to interactive mode
+	}
+	if isService {
+		// svc.Run's name argument is ignored by Windows for an own-process
+		// service, so the Agent's own service machinery hosts an instance
+		// service of any name unchanged.
+		return service.RunAsService(hostInstance)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := hostInstance(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
 }
 
 func runServiceCommand(args []string) error {
