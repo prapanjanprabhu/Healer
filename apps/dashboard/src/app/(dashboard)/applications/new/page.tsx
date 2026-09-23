@@ -31,6 +31,8 @@ export default function NewApplicationPage() {
   const [healthPath, setHealthPath] = useState("/health/");
   const [portStart, setPortStart] = useState(9034);
   const [portEnd, setPortEnd] = useState(9039);
+  const [minReplicas, setMinReplicas] = useState(1);
+  const [maxReplicas, setMaxReplicas] = useState(1);
   const [hostname, setHostname] = useState("");
   const [certPath, setCertPath] = useState("");
   const [keyPath, setKeyPath] = useState("");
@@ -64,6 +66,7 @@ export default function NewApplicationPage() {
       linux: adapter === "linux-docker" ? linux : null,
       health: { path: healthPath, interval_seconds: 10, timeout_seconds: 5, healthy_threshold: 2, unhealthy_threshold: 3 },
       ports: { start: portStart, end: portEnd },
+      replicas: { min: minReplicas, max: maxReplicas },
       domain: hostname ? { hostname, cert_path: certPath || null, key_path: keyPath || null } : null,
       secrets: secretsText
         .split(/[\n,]/)
@@ -217,6 +220,29 @@ export default function NewApplicationPage() {
           <label className="healer-field" style={{ flex: 1 }}>
             Port range end
             <input type="number" required value={portEnd} onChange={(e) => setPortEnd(Number(e.target.value))} />
+          </label>
+        </div>
+
+        <div style={{ display: "flex", gap: 12 }}>
+          <label className="healer-field" style={{ flex: 1 }}>
+            Minimum replicas
+            <input
+              type="number"
+              min={1}
+              required
+              value={minReplicas}
+              onChange={(e) => setMinReplicas(Number(e.target.value))}
+            />
+          </label>
+          <label className="healer-field" style={{ flex: 1 }}>
+            Maximum replicas
+            <input
+              type="number"
+              min={minReplicas}
+              required
+              value={maxReplicas}
+              onChange={(e) => setMaxReplicas(Number(e.target.value))}
+            />
           </label>
         </div>
 

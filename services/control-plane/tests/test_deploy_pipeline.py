@@ -219,8 +219,8 @@ def test_deploy_endpoint_runs_the_full_pipeline_to_a_running_instance(client, db
     assert detail.status_code == 200, detail.text
     detail_body = detail.json()
     assert detail_body["status"] == "succeeded"
-    assert detail_body["instance"]["status"] == "running"
-    assert detail_body["instance"]["port"] == body["port"]
+    assert detail_body["instances"][0]["status"] == "running"
+    assert detail_body["instances"][0]["port"] == body["port"]
     step_names = [s["name"] for s in detail_body["steps"]]
     assert step_names == [
         "snapshot",
@@ -305,7 +305,7 @@ def test_deploy_endpoint_reports_a_failed_step_and_never_starts_the_instance(cli
 
     detail = client.get(f"/deployments/{deployment_id}").json()
     assert detail["status"] == "failed"
-    assert detail["instance"]["status"] == "failed"
+    assert detail["instances"][0]["status"] == "failed"
     by_name = {s["name"]: s["status"] for s in detail["steps"]}
     assert by_name["pip_install"] == "failed"
     assert by_name["django_check"] == "skipped"
@@ -439,7 +439,7 @@ def test_deploy_endpoint_stays_succeeded_even_if_the_gateway_sync_fails(
     assert (
         detail["status"] == "succeeded"
     ), "the instance is genuinely running regardless of routing"
-    assert detail["instance"]["status"] == "running"
+    assert detail["instances"][0]["status"] == "running"
     by_name = {s["name"]: s["status"] for s in detail["steps"]}
     assert by_name["gateway_sync"] == "failed"
 

@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { DeployPanel } from "@/components/DeployPanel";
 import { GatewayPanel } from "@/components/GatewayPanel";
+import { InstanceTable } from "@/components/InstanceTable";
+import { ScalePanel } from "@/components/ScalePanel";
 import { ValidatePanel } from "@/components/ValidatePanel";
 import { CONTROL_PLANE_INTERNAL_URL } from "@/lib/config";
 import type { Application, SecretKey } from "@/lib/types";
@@ -69,6 +71,11 @@ export default async function ApplicationDetailPage({ params }: { params: { id: 
           )}
           <dt>Health path</dt>
           <dd>{config.health.path}</dd>
+          <dt>Replicas</dt>
+          <dd>
+            {application.min_replicas}–{application.max_replicas} allowed, {application.desired_replicas}{" "}
+            desired · ports {application.port_range_start}-{application.port_range_end}
+          </dd>
           {config.domain?.cert_path && (
             <>
               <dt>Certificate</dt>
@@ -80,9 +87,16 @@ export default async function ApplicationDetailPage({ params }: { params: { id: 
 
       <ValidatePanel applicationId={application.id} secretNames={config.secrets} initialSecrets={secrets} />
       <DeployPanel applicationId={application.id} />
+      <ScalePanel
+        applicationId={application.id}
+        minReplicas={application.min_replicas}
+        maxReplicas={application.max_replicas}
+        initialDesiredReplicas={application.desired_replicas}
+      />
       {config.domain?.hostname && (
         <GatewayPanel applicationId={application.id} hostname={config.domain.hostname} />
       )}
+      <InstanceTable applicationId={application.id} />
     </div>
   );
 }

@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     gateway_manager_internal_url: str = "http://gateway-manager:8100"
     gateway_manager_shared_secret: str = "change-me-internal-secret"
 
+    # Phase 10's continuous health-check/self-healing loop — an asyncio
+    # background task in this same process (see app/services/health_monitor.py).
+    # Off by default so it never runs during the test suite (TestClient
+    # triggers the app's lifespan per test); the real dev-stack .env turns
+    # it on.
+    health_monitor_enabled: bool = False
+
     service_name: str = "control-plane"
     service_version: str = "0.1.0"
 

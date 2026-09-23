@@ -124,6 +124,21 @@ Full instructions: [`docs/development.md`](docs/development.md).
   currently-healthy instances; `nginx -t`-validated, atomically activated,
   and automatically restored to the last working config on any validation or
   reload failure. See [`docs/gateway-routing.md`](docs/gateway-routing.md).
+- **Phase 9 — done:** manual replica scaling. `POST /applications/{id}/scale`
+  reconciles the running instance count to a desired target within
+  administrator-set `[min_replicas, max_replicas]` bounds: scale-up
+  transactionally allocates ports, starts and health-checks each new
+  instance before adding it to the gateway; scale-down drains (removes from
+  the gateway), waits, then stops excess instances — never dropping active
+  traffic. A race-safe per-application operation lock serializes
+  deploy/scale/restart. See [`docs/scaling.md`](docs/scaling.md).
+- **Phase 10 — done:** active health checks and bounded self-healing. A
+  continuous background loop HTTP-polls every running instance at its
+  configured cadence; a run of consecutive failures removes it from Nginx,
+  attempts a controlled restart with health verification, and — if that
+  fails — creates a replacement instance instead, bounded by a
+  configurable attempt limit and cooldown (never an infinite loop) with an
+  administrator notification once the limit is reached. See
+  [`docs/self-healing.md`](docs/self-healing.md).
 
-Health-driven remediation and multi-instance/zero-downtime rollout are not
-implemented yet — later phases.
+V1 is feature-complete per the master plan.

@@ -40,7 +40,10 @@ class DeploymentDetailOut(BaseModel):
     release_id: uuid.UUID
     release_version: str
     status: str
-    instance: DeploymentInstanceOut | None
+    # Every instance this specific Deployment created or touched — plural
+    # since Phase 9: a scale operation can start or drain several at once,
+    # unlike an original deploy (always exactly one).
+    instances: list[DeploymentInstanceOut]
     steps: list[DeploymentStepOut]
     logs: list[DeploymentLogOut]
     created_at: datetime

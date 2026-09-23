@@ -25,12 +25,20 @@ DEPLOYMENT_TRANSITIONS: dict[DeploymentStatus, set[DeploymentStatus]] = {
 INSTANCE_TRANSITIONS: dict[InstanceStatus, set[InstanceStatus]] = {
     InstanceStatus.PENDING: {InstanceStatus.STARTING, InstanceStatus.FAILED},
     InstanceStatus.STARTING: {InstanceStatus.RUNNING, InstanceStatus.FAILED},
-    InstanceStatus.RUNNING: {InstanceStatus.UNHEALTHY, InstanceStatus.STOPPED},
+    InstanceStatus.RUNNING: {
+        InstanceStatus.UNHEALTHY,
+        InstanceStatus.DRAINING,
+        InstanceStatus.STOPPED,
+    },
     InstanceStatus.UNHEALTHY: {
         InstanceStatus.RUNNING,
+        InstanceStatus.RESTARTING,
+        InstanceStatus.DRAINING,
         InstanceStatus.STOPPED,
         InstanceStatus.FAILED,
     },
+    InstanceStatus.RESTARTING: {InstanceStatus.RUNNING, InstanceStatus.FAILED},
+    InstanceStatus.DRAINING: {InstanceStatus.STOPPED, InstanceStatus.FAILED},
     InstanceStatus.STOPPED: {InstanceStatus.STARTING},
     InstanceStatus.FAILED: {InstanceStatus.STARTING},
 }

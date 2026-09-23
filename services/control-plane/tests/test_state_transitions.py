@@ -115,6 +115,33 @@ def test_instance_health_driven_removal_and_restart(db_session):
     assert instance.status == InstanceStatus.RUNNING
 
 
+def test_instance_restarting_transitions(db_session):
+    server = make_server(db_session)
+    application = make_application(db_session)
+    instance = Instance(
+        application_id=application.id,
+        server_id=server.id,
+        port=9038,
+        status=InstanceStatus.RUNNING,
+    )
+    db_session.add(instance)
+    db_session.flush()
+
+    repo = InstanceRepository(db_session)
+    repo.transition(instance, InstanceStatus.UNHEALTHY)
+    repo.transition(instance, InstanceStatus.RESTARTING)
+    repo.transition(instance, InstanceStatus.RUNNING)
+    assert instance.status == InstanceStatus.RUNNING
+
+    repo.transition(instance, InstanceStatus.UNHEALTHY)
+    repo.transition(instance, InstanceStatus.RESTARTING)
+    repo.transition(instance, InstanceStatus.FAILED)
+    assert instance.status == InstanceStatus.FAILED
+
+    with pytest.raises(InvalidTransition):
+        repo.transition(instance, InstanceStatus.RESTARTING)
+
+
 def test_instance_cannot_go_directly_from_pending_to_running(db_session):
     server = make_server(db_session)
     application = make_application(db_session)

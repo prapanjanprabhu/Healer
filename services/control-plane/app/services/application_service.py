@@ -39,6 +39,9 @@ def create_application(session: Session, config: HealerYamlV1) -> Application:
         config=config.model_dump(mode="json"),
         port_range_start=config.ports.start,
         port_range_end=config.ports.end,
+        min_replicas=config.replicas.min,
+        max_replicas=config.replicas.max,
+        desired_replicas=config.replicas.min,
     )
     session.add(application)
     session.flush()
@@ -59,6 +62,14 @@ def update_application(
     application.config = config.model_dump(mode="json")
     application.port_range_start = config.ports.start
     application.port_range_end = config.ports.end
+    application.min_replicas = config.replicas.min
+    application.max_replicas = config.replicas.max
+    # Keep the live scaling target inside the (possibly just-narrowed) bounds
+    # rather than resetting it — editing config should never itself trigger
+    # a scale operation.
+    application.desired_replicas = min(
+        max(application.desired_replicas, config.replicas.min), config.replicas.max
+    )
     session.flush()
     _sync_related_rows(session, application, config)
     return application

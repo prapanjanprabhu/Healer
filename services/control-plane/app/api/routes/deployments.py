@@ -49,9 +49,9 @@ def get_deployment(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="deployment not found")
 
     release = db.get(Release, deployment.release_id)
-    instance = db.scalars(
-        select(Instance).where(Instance.release_id == deployment.release_id)
-    ).first()
+    instances = db.scalars(
+        select(Instance).where(Instance.deployment_id == deployment.id).order_by(Instance.port)
+    ).all()
 
     steps = db.scalars(
         select(DeploymentStep)
@@ -70,7 +70,7 @@ def get_deployment(
         release_id=deployment.release_id,
         release_version=release.ref if release else "",
         status=deployment.status.value,
-        instance=(
+        instances=[
             DeploymentInstanceOut(
                 id=instance.id,
                 server_id=instance.server_id,
@@ -78,9 +78,8 @@ def get_deployment(
                 service_name=instance.service_name,
                 status=instance.status.value,
             )
-            if instance
-            else None
-        ),
+            for instance in instances
+        ],
         steps=[
             DeploymentStepOut(
                 name=s.name,

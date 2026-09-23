@@ -48,6 +48,7 @@ export interface HealerYamlConfig {
     unhealthy_threshold: number;
   };
   ports: { start: number; end: number };
+  replicas: { min: number; max: number };
   domain?: { hostname: string; cert_path?: string | null; key_path?: string | null } | null;
   secrets: string[];
 }
@@ -61,6 +62,9 @@ export interface Application {
   config: HealerYamlConfig;
   port_range_start: number | null;
   port_range_end: number | null;
+  min_replicas: number;
+  max_replicas: number;
+  desired_replicas: number;
   created_at: string;
   updated_at: string;
 }
@@ -118,7 +122,7 @@ export interface DeploymentDetail {
   release_id: string;
   release_version: string;
   status: "pending" | "in_progress" | "succeeded" | "failed" | "rolled_back";
-  instance: DeploymentInstance | null;
+  instances: DeploymentInstance[];
   steps: DeploymentStep[];
   logs: DeploymentLogEntry[];
   created_at: string;
@@ -128,4 +132,33 @@ export interface DeploymentDetail {
 export interface GatewaySyncResponse {
   ok: boolean;
   message: string;
+}
+
+export interface ScaleTriggerResponse {
+  deployment_id: string;
+  desired_replicas: number;
+}
+
+export interface Notification {
+  id: string;
+  notification_type: string;
+  message: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface Instance {
+  id: string;
+  port: number;
+  server_id: string;
+  server_name: string;
+  status: string;
+  release_version: string;
+  service_name: string | null;
+  healthy: boolean | null;
+  response_time_ms: number | null;
+  last_checked_at: string | null;
+  failure_reason: string | null;
+  healing_attempts: number;
+  created_at: string;
 }

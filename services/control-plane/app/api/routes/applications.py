@@ -25,14 +25,19 @@ from app.schemas.applications import (
 from app.schemas.deployments import DeployTriggerResponse
 from app.schemas.gateway import GatewaySyncResponse
 from app.schemas.healer_yaml import HealerYamlV1
+from app.schemas.scale import InstanceOut, ScaleTriggerRequest, ScaleTriggerResponse
 from app.services import (
     application_service,
     audit_service,
     deployment_service,
     gateway_service,
+    lock_service,
+    scale_service,
     secret_service,
 )
 from app.services.deployment_service import DeploymentSetupError
+from app.services.lock_service import OperationLockHeldError
+from app.services.scale_service import ScaleSetupError
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -194,10 +199,16 @@ async def deploy_application(
         ) from exc
 
     try:
+        lock_service.acquire(db, application.id, "deploy")
+    except OperationLockHeldError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    try:
         deployment = deployment_service.start_deployment(
             db, application, config, actor_id=current_user.id
         )
     except DeploymentSetupError as exc:
+        lock_service.release(db, application.id)
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     instance = db.scalars(
@@ -242,6 +253,74 @@ async def sync_gateway_endpoint(
 
     result = await gateway_service.sync_gateway(db, application, actor_id=current_user.id)
     return GatewaySyncResponse(ok=result.ok, message=result.message)
+
+
+@router.post(
+    "/{application_id}/scale",
+    response_model=ScaleTriggerResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def scale_application(
+    application_id: uuid.UUID,
+    payload: ScaleTriggerRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("scale")),
+    _csrf: None = Depends(verify_csrf),
+) -> ScaleTriggerResponse:
+    """Reconciles the running instance count to `desired_replicas` (within
+    [min_replicas, max_replicas]): starts new, health-checked instances and
+    adds them to the gateway, or safely drains and stops excess ones. Returns
+    immediately (202) — poll `GET /deployments/{deployment_id}` for progress
+    and `GET /applications/{id}/instances` for live per-instance state. See
+    docs/scaling.md.
+    """
+    application = ApplicationRepository(db).get(application_id)
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
+
+    try:
+        lock_service.acquire(db, application.id, "scale")
+    except OperationLockHeldError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    try:
+        deployment = scale_service.start_scale(
+            db, application, payload.desired_replicas, actor_id=current_user.id
+        )
+    except ScaleSetupError as exc:
+        lock_service.release(db, application.id)
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    audit_service.record(
+        db,
+        actor_id=current_user.id,
+        action="application.scale_triggered",
+        target_type="application",
+        target_id=str(application.id),
+        detail={"deployment_id": str(deployment.id), "desired_replicas": payload.desired_replicas},
+    )
+
+    background_tasks.add_task(scale_service.run_scale, db, deployment.id)
+
+    return ScaleTriggerResponse(
+        deployment_id=deployment.id, desired_replicas=payload.desired_replicas
+    )
+
+
+@router.get("/{application_id}/instances", response_model=list[InstanceOut])
+def list_instances(
+    application_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _current_user: CurrentUser = Depends(require_permission("view")),
+) -> list[InstanceOut]:
+    """The dashboard's instance table: every instance (any status), its
+    port/server, release, and latest health-check result.
+    """
+    application = ApplicationRepository(db).get(application_id)
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
+    return [InstanceOut(**vars(view)) for view in scale_service.list_instances(db, application_id)]
 
 
 @router.post("/{application_id}/secrets", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +30,22 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     port_range_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     port_range_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Replica bounds from healer.yaml (kept in sync by application_service,
+    # same pattern as port_range_start/end) and the live scaling target,
+    # which changes independently via app/services/scale_service.py —
+    # never part of the healer.yaml config blob itself.
+    min_replicas: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    max_replicas: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    desired_replicas: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # A simple, race-safe operation lock (see app/services/lock_service.py):
+    # acquired with an atomic conditional UPDATE, so only one deploy/scale
+    # operation can run against an application at a time. A lock older than
+    # lock_service.STALE_LOCK_AFTER is treated as abandoned (e.g. a crashed
+    # background task) and can be reacquired.
+    operation_lock: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    operation_lock_acquired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class Source(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -109,3 +126,22 @@ class Instance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # since it's derived from the (stable) application slug and the
     # allocated port, not from anything the Agent reports back.
     service_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Which Deployment (a deploy or a scale operation) most recently created
+    # or touched (drained/stopped) this instance — release_id alone can't
+    # answer that, since a scale operation shares its release with whatever
+    # deploy first produced it. See app/services/scale_service.py.
+    deployment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("deployments.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Self-healing bookkeeping (Phase 10) — see
+    # app/services/self_healing_service.py. `healing_attempts` carries over
+    # to a replacement instance so a whole failing "lineage" is bounded by
+    # HealthCheck.max_restart_attempts, not reset by each replacement.
+    healing_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_healing_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

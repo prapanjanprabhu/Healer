@@ -72,6 +72,8 @@ class InstanceStatus(str, enum.Enum):
     STARTING = "starting"
     RUNNING = "running"
     UNHEALTHY = "unhealthy"
+    RESTARTING = "restarting"
+    DRAINING = "draining"
     STOPPED = "stopped"
     FAILED = "failed"
 

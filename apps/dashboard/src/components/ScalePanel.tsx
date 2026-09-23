@@ -6,8 +6,19 @@ import type { DeploymentDetail } from "@/lib/types";
 
 const TERMINAL_STATUSES = new Set(["succeeded", "failed", "rolled_back"]);
 
-export function DeployPanel({ applicationId }: { applicationId: string }) {
-  const [triggering, setTriggering] = useState(false);
+export function ScalePanel({
+  applicationId,
+  minReplicas,
+  maxReplicas,
+  initialDesiredReplicas,
+}: {
+  applicationId: string;
+  minReplicas: number;
+  maxReplicas: number;
+  initialDesiredReplicas: number;
+}) {
+  const [target, setTarget] = useState(initialDesiredReplicas);
+  const [scaling, setScaling] = useState(false);
   const [deploymentId, setDeploymentId] = useState<string | null>(null);
   const [detail, setDetail] = useState<DeploymentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,14 +44,17 @@ export function DeployPanel({ applicationId }: { applicationId: string }) {
     }, 2000);
   }
 
-  async function deploy() {
-    setTriggering(true);
+  async function scale() {
+    setScaling(true);
     setError(null);
-    const response = await apiFetch(`/applications/${applicationId}/deploy`, { method: "POST" });
-    setTriggering(false);
+    const response = await apiFetch(`/applications/${applicationId}/scale`, {
+      method: "POST",
+      body: JSON.stringify({ desired_replicas: target }),
+    });
+    setScaling(false);
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      setError(typeof body.detail === "string" ? body.detail : "Could not start the deployment.");
+      setError(typeof body.detail === "string" ? body.detail : "Could not start scaling.");
       return;
     }
     const body = await response.json();
@@ -50,33 +64,43 @@ export function DeployPanel({ applicationId }: { applicationId: string }) {
 
   return (
     <div className="healer-card" style={{ maxWidth: 640, marginTop: 20 }}>
-      <div className="healer-card-title">Deploy</div>
+      <div className="healer-card-title">Scale</div>
       <p className="healer-card-description" style={{ marginBottom: 12 }}>
-        Snapshots a release, installs requirements, runs migrations and collectstatic, then starts
-        one Waitress instance on an automatically allocated port.
+        Reserves ports, starts and health-checks new instances before adding them to the gateway,
+        or safely drains and stops excess ones. Allowed range: {minReplicas}–{maxReplicas} replicas.
       </p>
-      <button onClick={deploy} disabled={triggering || (detail !== null && detail.status === "in_progress")}>
-        {triggering ? "Starting…" : "Deploy"}
-      </button>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          type="number"
+          min={minReplicas}
+          max={maxReplicas}
+          value={target}
+          onChange={(e) => setTarget(Number(e.target.value))}
+          style={{ width: 80 }}
+        />
+        <button
+          onClick={scale}
+          disabled={
+            scaling ||
+            target < minReplicas ||
+            target > maxReplicas ||
+            (detail !== null && detail.status === "in_progress")
+          }
+        >
+          {scaling ? "Starting…" : "Scale"}
+        </button>
+      </div>
 
-      {error && <div className="healer-error" style={{ marginTop: 12 }}>{error}</div>}
+      {error && (
+        <div className="healer-error" style={{ marginTop: 12 }}>
+          {error}
+        </div>
+      )}
 
       {detail && (
         <div style={{ marginTop: 16 }}>
           <p className="healer-card-description">
-            Deployment <code>{deploymentId}</code> — status: <strong>{detail.status}</strong>
-            {(() => {
-              const first = detail.instances[0];
-              return (
-                first && (
-                  <>
-                    {" "}
-                    · instance <strong>{first.status}</strong> on port <strong>{first.port}</strong>
-                    {first.service_name && <> ({first.service_name})</>}
-                  </>
-                )
-              );
-            })()}
+            Scale operation <code>{deploymentId}</code> — status: <strong>{detail.status}</strong>
           </p>
           <ul className="healer-issue-list">
             {detail.steps.map((step, index) => (

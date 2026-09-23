@@ -37,6 +37,12 @@ class HealthCheck(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     healthy_threshold: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
     unhealthy_threshold: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    # None (the default) preserves the Phase 9 behavior — any non-5xx counts
+    # as healthy. Set to require an exact status code instead.
+    expected_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Bounds for Phase 10's self-healing — see app/services/self_healing_service.py.
+    max_restart_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    restart_cooldown_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
 
 
 class HealthCheckResult(UUIDPrimaryKeyMixin, Base):
@@ -57,4 +63,5 @@ class HealthCheckResult(UUIDPrimaryKeyMixin, Base):
     healthy: Mapped[bool] = mapped_column(Boolean, nullable=False)
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    response_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

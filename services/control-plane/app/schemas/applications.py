@@ -15,6 +15,9 @@ class ApplicationOut(BaseModel):
     config: dict
     port_range_start: int | None
     port_range_end: int | None
+    min_replicas: int
+    max_replicas: int
+    desired_replicas: int
     created_at: datetime
     updated_at: datetime
 
@@ -29,6 +32,9 @@ class ApplicationOut(BaseModel):
             config=application.config or {},
             port_range_start=application.port_range_start,
             port_range_end=application.port_range_end,
+            min_replicas=application.min_replicas,
+            max_replicas=application.max_replicas,
+            desired_replicas=application.desired_replicas,
             created_at=application.created_at,
             updated_at=application.updated_at,
         )

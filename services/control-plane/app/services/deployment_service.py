@@ -21,7 +21,7 @@ from app.repositories.agent_repository import AgentRepository
 from app.repositories.deployment_repository import DeploymentRepository
 from app.repositories.instance_repository import InstanceRepository
 from app.schemas.healer_yaml import HealerYamlV1
-from app.services import application_service, command_service, gateway_service
+from app.services import application_service, command_service, gateway_service, lock_service
 
 
 def transition_deployment(
@@ -102,7 +102,7 @@ def start_deployment(
     session.add(release)
     session.flush()
 
-    _allocate_instance(
+    instance = _allocate_instance(
         session,
         application=application,
         release=release,
@@ -120,6 +120,7 @@ def start_deployment(
     )
     session.add(deployment)
     session.flush()
+    instance.deployment_id = deployment.id
 
     transition_deployment(session, deployment, DeploymentStatus.IN_PROGRESS, actor_id=actor_id)
     session.commit()
@@ -280,85 +281,92 @@ async def run_deployment(session: Session, deployment_id: uuid.UUID) -> None:
     deployment = DeploymentRepository(session).get(deployment_id)
     if deployment is None:
         return
-    release = session.get(Release, deployment.release_id)
-    instance = session.scalars(select(Instance).where(Instance.release_id == release.id)).first()
-    application = session.get(Application, deployment.application_id)
-    if release is None or instance is None or application is None:
-        return
+    try:
+        release = session.get(Release, deployment.release_id)
+        application = session.get(Application, deployment.application_id)
+        if release is None or application is None:
+            return
+        instance = session.scalars(
+            select(Instance).where(Instance.release_id == release.id)
+        ).first()
+        if instance is None:
+            return
 
-    config = application_service.config_from_application(application)
-    agent = AgentRepository(session).get_by_server_id(instance.server_id)
-    if agent is None:
-        session.add(
-            DeploymentLog(
-                deployment_id=deployment.id,
-                level="error",
-                message="the target server's Agent disappeared before deployment could run",
+        config = application_service.config_from_application(application)
+        agent = AgentRepository(session).get_by_server_id(instance.server_id)
+        if agent is None:
+            session.add(
+                DeploymentLog(
+                    deployment_id=deployment.id,
+                    level="error",
+                    message="the target server's Agent disappeared before deployment could run",
+                )
             )
+            transition_deployment(session, deployment, DeploymentStatus.FAILED)
+            session.commit()
+            return
+
+        release.status = ReleaseStatus.BUILDING
+        session.commit()
+
+        deploy_payload = _build_deploy_release_payload(application, release, config)
+        deploy_command = await command_service.submit_command_and_wait(
+            session,
+            agent,
+            AgentCommandType.DEPLOY_RELEASE,
+            deploy_payload,
+            idempotency_key=f"deploy-release:{deployment.id}",
+            ttl_seconds=600,
+            wait_seconds=480.0,
         )
-        transition_deployment(session, deployment, DeploymentStatus.FAILED)
+        deploy_ok = _persist_agent_outcome(session, deployment, deploy_command)
+        if deploy_ok:
+            result = deploy_command.result or {}
+            release.release_dir = result.get("release_dir")
+            release.venv_python = result.get("venv_python")
+            release.status = ReleaseStatus.READY
+        else:
+            release.status = ReleaseStatus.FAILED
         session.commit()
-        return
 
-    release.status = ReleaseStatus.BUILDING
-    session.commit()
+        if not deploy_ok:
+            InstanceRepository(session).transition(instance, InstanceStatus.FAILED)
+            transition_deployment(session, deployment, DeploymentStatus.FAILED)
+            session.commit()
+            return
 
-    deploy_payload = _build_deploy_release_payload(application, release, config)
-    deploy_command = await command_service.submit_command_and_wait(
-        session,
-        agent,
-        AgentCommandType.DEPLOY_RELEASE,
-        deploy_payload,
-        idempotency_key=f"deploy-release:{deployment.id}",
-        ttl_seconds=600,
-        wait_seconds=480.0,
-    )
-    deploy_ok = _persist_agent_outcome(session, deployment, deploy_command)
-    if deploy_ok:
-        result = deploy_command.result or {}
-        release.release_dir = result.get("release_dir")
-        release.venv_python = result.get("venv_python")
-        release.status = ReleaseStatus.READY
-    else:
-        release.status = ReleaseStatus.FAILED
-    session.commit()
-
-    if not deploy_ok:
-        InstanceRepository(session).transition(instance, InstanceStatus.FAILED)
-        transition_deployment(session, deployment, DeploymentStatus.FAILED)
+        InstanceRepository(session).transition(instance, InstanceStatus.STARTING)
         session.commit()
-        return
 
-    InstanceRepository(session).transition(instance, InstanceStatus.STARTING)
-    session.commit()
-
-    start_payload = _build_start_instance_payload(release, instance, config)
-    start_command = await command_service.submit_command_and_wait(
-        session,
-        agent,
-        AgentCommandType.START_INSTANCE,
-        start_payload,
-        idempotency_key=f"start-instance:{instance.id}",
-        # The "permissions" step recursively grants the low-privilege
-        # service account read+execute on the base Python installation
-        # (icacls ... /T) — a one-time-per-interpreter cost that can take
-        # well over a minute on a large stdlib/site-packages tree, so this
-        # needs real headroom, not the quick round trip start_instance's
-        # other steps would otherwise suggest.
-        ttl_seconds=200,
-        wait_seconds=180.0,
-    )
-    start_ok = _persist_agent_outcome(session, deployment, start_command)
-    if start_ok:
-        InstanceRepository(session).transition(instance, InstanceStatus.RUNNING)
-        transition_deployment(session, deployment, DeploymentStatus.SUCCEEDED)
-        session.commit()
-        if config.domain is not None:
-            await _sync_gateway_step(session, deployment, application)
-    else:
-        InstanceRepository(session).transition(instance, InstanceStatus.FAILED)
-        transition_deployment(session, deployment, DeploymentStatus.FAILED)
-        session.commit()
+        start_payload = _build_start_instance_payload(release, instance, config)
+        start_command = await command_service.submit_command_and_wait(
+            session,
+            agent,
+            AgentCommandType.START_INSTANCE,
+            start_payload,
+            idempotency_key=f"start-instance:{instance.id}",
+            # The "permissions" step recursively grants the low-privilege
+            # service account read+execute on the base Python installation
+            # (icacls ... /T) — a one-time-per-interpreter cost that can take
+            # well over a minute on a large stdlib/site-packages tree, so this
+            # needs real headroom, not the quick round trip start_instance's
+            # other steps would otherwise suggest.
+            ttl_seconds=200,
+            wait_seconds=180.0,
+        )
+        start_ok = _persist_agent_outcome(session, deployment, start_command)
+        if start_ok:
+            InstanceRepository(session).transition(instance, InstanceStatus.RUNNING)
+            transition_deployment(session, deployment, DeploymentStatus.SUCCEEDED)
+            session.commit()
+            if config.domain is not None:
+                await _sync_gateway_step(session, deployment, application)
+        else:
+            InstanceRepository(session).transition(instance, InstanceStatus.FAILED)
+            transition_deployment(session, deployment, DeploymentStatus.FAILED)
+            session.commit()
+    finally:
+        lock_service.release(session, deployment.application_id)
 
 
 async def _sync_gateway_step(

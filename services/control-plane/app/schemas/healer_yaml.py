@@ -75,6 +75,22 @@ class DomainConfig(BaseModel):
     key_path: str | None = None
 
 
+class ReplicaConfig(BaseModel):
+    """Bounds on the live scaling target (`Application.desired_replicas`),
+    which the administrator changes independently via
+    `POST /applications/{id}/scale` — see app/services/scale_service.py.
+    """
+
+    min: int = Field(default=1, ge=1)
+    max: int = Field(default=1, ge=1)
+
+    @model_validator(mode="after")
+    def _range_is_sane(self) -> "ReplicaConfig":
+        if self.max < self.min:
+            raise ValueError("replicas.max must be >= replicas.min")
+        return self
+
+
 class HealerYamlV1(BaseModel):
     version: Literal[1] = 1
     name: str = Field(min_length=1, max_length=255)
@@ -85,10 +101,21 @@ class HealerYamlV1(BaseModel):
     linux: LinuxAdapterConfig | None = None
     health: HealthConfig
     ports: PortRangeConfig
+    replicas: ReplicaConfig = Field(default_factory=ReplicaConfig)
     domain: DomainConfig | None = None
     # Secret KEY NAMES this application needs at runtime — never values.
     # Validated for existence only; see app/domain/app_validation.py.
     secrets: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _replicas_fit_in_the_port_range(self) -> "HealerYamlV1":
+        port_count = self.ports.end - self.ports.start + 1
+        if self.replicas.max > port_count:
+            raise ValueError(
+                f"replicas.max ({self.replicas.max}) cannot exceed the number of ports in "
+                f"the configured range ({port_count})"
+            )
+        return self
 
     @model_validator(mode="after")
     def _adapter_matches_source_and_section(self) -> "HealerYamlV1":
