@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     control_plane_host: str = "0.0.0.0"
     control_plane_port: int = 8000
     control_plane_secret_key: str = "change-me-dev-secret"
+    # Phase 15: encrypts SecretRecord.encrypted_value at rest (Fernet, keyed
+    # by SHA-256 of this passphrase — see app/core/secret_crypto.py). An
+    # arbitrary passphrase like every other "change-me-*" value here, not a
+    # pre-generated Fernet key — one bootstrap step, not two.
+    secret_encryption_key: str = "change-me-dev-secret-encryption-key"
 
     # Auth (Phase 3). Access tokens are short-lived and stateless (JWT);
     # refresh sessions are DB-backed and revocable — see docs/auth.md.
@@ -45,6 +50,12 @@ class Settings(BaseSettings):
     # triggers the app's lifespan per test); the real dev-stack .env turns
     # it on.
     health_monitor_enabled: bool = False
+
+    # Phase 12: PostgreSQL only holds a short-term window of metrics
+    # snapshots — old rows are deleted by a background loop (started
+    # alongside the health monitor, same settings.health_monitor_enabled
+    # flag — both are V1 single-process background maintenance loops).
+    metrics_retention_days: int = 7
 
     service_name: str = "control-plane"
     service_version: str = "0.1.0"

@@ -53,6 +53,7 @@ func New() *Dispatcher {
 	d.Register(protocol.CommandDeployRelease, HandleDeployRelease)
 	d.Register(protocol.CommandStartInstance, HandleStartInstance)
 	d.Register(protocol.CommandStopInstance, HandleStopInstance)
+	d.Register(protocol.CommandCollectLogs, HandleCollectLogs)
 	return d
 }
 

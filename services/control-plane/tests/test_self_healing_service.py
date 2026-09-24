@@ -247,7 +247,10 @@ def test_replacement_start_failure_gives_up_and_notifies(db_session, monkeypatch
 
     notification = (
         db_session.query(Notification)
-        .filter(Notification.notification_type == "self_healing_gave_up")
+        .filter(
+            Notification.notification_type == "self_healing_gave_up",
+            Notification.message.contains(str(replacement.port)),
+        )
         .one()
     )
     assert str(replacement.port) in notification.message
@@ -278,7 +281,10 @@ def test_max_attempts_reached_gives_up_without_attempting_a_restart(db_session, 
 
     notification = (
         db_session.query(Notification)
-        .filter(Notification.notification_type == "self_healing_gave_up")
+        .filter(
+            Notification.notification_type == "self_healing_gave_up",
+            Notification.message.contains(str(instance.port)),
+        )
         .one()
     )
     assert str(instance.port) in notification.message

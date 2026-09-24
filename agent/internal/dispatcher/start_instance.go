@@ -10,18 +10,38 @@ import (
 	"strings"
 	"time"
 
+	"github.com/healer-platform/agent/internal/dockerengine"
 	"github.com/healer-platform/agent/internal/service"
 )
 
-type startInstancePayload struct {
-	ServiceName string `json:"service_name"`
-	ReleaseDir  string `json:"release_dir"`
-	VenvPython  string `json:"venv_python"`
-	WSGIModule  string `json:"wsgi_module"`
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	LogDir      string `json:"log_dir"`
+type startLinux struct {
+	ImageRef      string            `json:"image_ref"`
+	InternalPort  int               `json:"internal_port"`
+	Env           map[string]string `json:"env"`
+	CPULimit      float64           `json:"cpu_limit"`
+	MemoryLimitMB int               `json:"memory_limit_mb"`
 }
+
+type startInstancePayload struct {
+	Adapter     string      `json:"adapter"`
+	ServiceName string      `json:"service_name"`
+	ReleaseDir  string      `json:"release_dir"`
+	VenvPython  string      `json:"venv_python"`
+	WSGIModule  string      `json:"wsgi_module"`
+	Host        string      `json:"host"`
+	Port        int         `json:"port"`
+	LogDir      string      `json:"log_dir"`
+	Linux       *startLinux `json:"linux,omitempty"`
+}
+
+// dockerNetworkName is the single shared bridge network every Docker-adapter
+// container joins — simple and sufficient for V1 (no stated requirement for
+// per-application network isolation; see docs/security-boundaries.md).
+const dockerNetworkName = "healer-apps"
+
+// containerStartTimeout bounds how long start_instance waits for a freshly
+// started container to report a running state.
+const containerStartTimeout = 15 * time.Second
 
 // launchSpec is the contract between start_instance and the Agent's own
 // `instance-host` subcommand: start_instance writes one of these next to
@@ -70,6 +90,96 @@ func HandleStartInstance(ctx context.Context, raw json.RawMessage) (map[string]a
 		return nil, err
 	}
 
+	if payload.Adapter == "linux-docker" {
+		return startLinuxInstance(ctx, payload)
+	}
+	return startWindowsInstance(ctx, payload)
+}
+
+// startLinuxInstance converges one application instance to "a running
+// container under this name, published on the allocated host port" — the
+// Docker-adapter equivalent of startWindowsInstance's Windows Service
+// install/start. Idempotent: CreateContainer removes any existing container
+// under this name first (see dockerengine.Client.CreateContainer).
+func startLinuxInstance(ctx context.Context, payload startInstancePayload) (map[string]any, error) {
+	l := payload.Linux
+	runner := &stepRunner{}
+	client := dockerengine.New()
+
+	runner.run("network", func() (string, error) {
+		if err := client.EnsureNetwork(ctx, dockerNetworkName); err != nil {
+			return "", fmt.Errorf("ensure docker network %s: %w", dockerNetworkName, err)
+		}
+		return fmt.Sprintf("network %s ready", dockerNetworkName), nil
+	})
+
+	var containerID string
+	runner.run("container_create", func() (string, error) {
+		id, err := client.CreateContainer(ctx, payload.ServiceName, dockerengine.ContainerSpec{
+			Image:         l.ImageRef,
+			Env:           l.Env,
+			Network:       dockerNetworkName,
+			HostPort:      payload.Port,
+			InternalPort:  l.InternalPort,
+			CPULimit:      l.CPULimit,
+			MemoryLimitMB: l.MemoryLimitMB,
+		})
+		if err != nil {
+			return "", fmt.Errorf("create container %s: %w", payload.ServiceName, err)
+		}
+		containerID = id
+		return fmt.Sprintf("created container %s", payload.ServiceName), nil
+	})
+
+	runner.run("container_start", func() (string, error) {
+		if err := client.StartContainer(ctx, payload.ServiceName); err != nil {
+			return "", fmt.Errorf("start container %s: %w", payload.ServiceName, err)
+		}
+		return waitForContainerRunning(ctx, client, payload.ServiceName)
+	})
+
+	return map[string]any{
+		"ok":           runner.ok(),
+		"service_name": payload.ServiceName,
+		"container_id": containerID,
+		"steps":        runner.steps,
+	}, nil
+}
+
+// waitForContainerRunning polls the container's state until it reports
+// Running — a container can exit immediately after start (a bad entrypoint,
+// a missing env var the app requires), which "start succeeded" alone would
+// not catch. On a container that already exited, its recent logs are
+// included in the failure so the reason is visible without a separate
+// diagnostic round trip.
+func waitForContainerRunning(ctx context.Context, client *dockerengine.Client, name string) (string, error) {
+	deadline := time.Now().Add(containerStartTimeout)
+	for {
+		state, err := client.InspectContainer(ctx, name)
+		if err != nil {
+			return "", fmt.Errorf("inspect container %s: %w", name, err)
+		}
+		if state.Running {
+			return "container is running", nil
+		}
+		if state.Exists && state.Status == "exited" {
+			logs, _ := client.ContainerLogs(ctx, name, 50)
+			return "", fmt.Errorf("container exited (exit code %d) shortly after starting: %s",
+				state.ExitCode, truncateTail(logs))
+		}
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("container %s did not reach the running state within %s (last status: %s)",
+				name, containerStartTimeout, state.Status)
+		}
+		select {
+		case <-ctx.Done():
+			return "", errors.New("timed out waiting for the container to start: " + ctx.Err().Error())
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
+func startWindowsInstance(ctx context.Context, payload startInstancePayload) (map[string]any, error) {
 	// .../apps/<slug>/releases/<version> -> .../apps/<slug>
 	appDir := filepath.Dir(filepath.Dir(payload.ReleaseDir))
 	runner := &stepRunner{}
@@ -199,20 +309,36 @@ func HandleStartInstance(ctx context.Context, raw json.RawMessage) (map[string]a
 }
 
 func validateStartInstancePayload(payload startInstancePayload) error {
+	if strings.TrimSpace(payload.ServiceName) == "" {
+		return errors.New("invalid start_instance payload: service_name must not be empty")
+	}
+	if payload.Port < 1 || payload.Port > 65535 {
+		return fmt.Errorf("invalid start_instance payload: port %d is out of range", payload.Port)
+	}
+
+	if payload.Adapter == "linux-docker" {
+		if payload.Linux == nil {
+			return errors.New("invalid start_instance payload: missing linux config")
+		}
+		if strings.TrimSpace(payload.Linux.ImageRef) == "" {
+			return errors.New("invalid start_instance payload: linux.image_ref must not be empty")
+		}
+		if payload.Linux.InternalPort < 1 || payload.Linux.InternalPort > 65535 {
+			return fmt.Errorf("invalid start_instance payload: linux.internal_port %d is out of range", payload.Linux.InternalPort)
+		}
+		return nil
+	}
+
 	for name, value := range map[string]string{
-		"service_name": payload.ServiceName,
-		"release_dir":  payload.ReleaseDir,
-		"venv_python":  payload.VenvPython,
-		"wsgi_module":  payload.WSGIModule,
-		"host":         payload.Host,
-		"log_dir":      payload.LogDir,
+		"release_dir": payload.ReleaseDir,
+		"venv_python": payload.VenvPython,
+		"wsgi_module": payload.WSGIModule,
+		"host":        payload.Host,
+		"log_dir":     payload.LogDir,
 	} {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("invalid start_instance payload: %s must not be empty", name)
 		}
-	}
-	if payload.Port < 1 || payload.Port > 65535 {
-		return fmt.Errorf("invalid start_instance payload: port %d is out of range", payload.Port)
 	}
 	return nil
 }

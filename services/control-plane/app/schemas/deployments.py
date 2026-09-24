@@ -12,6 +12,17 @@ class DeployTriggerResponse(BaseModel):
     service_name: str
 
 
+class DeploymentSummaryOut(BaseModel):
+    id: uuid.UUID
+    application_id: uuid.UUID
+    application_name: str
+    release_version: str | None
+    status: str
+    kind: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class DeploymentStepOut(BaseModel):
     name: str
     status: str

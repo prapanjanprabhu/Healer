@@ -27,6 +27,7 @@ INSTANCE_TRANSITIONS: dict[InstanceStatus, set[InstanceStatus]] = {
     InstanceStatus.STARTING: {InstanceStatus.RUNNING, InstanceStatus.FAILED},
     InstanceStatus.RUNNING: {
         InstanceStatus.UNHEALTHY,
+        InstanceStatus.RESTARTING,
         InstanceStatus.DRAINING,
         InstanceStatus.STOPPED,
     },

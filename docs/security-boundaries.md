@@ -67,6 +67,40 @@ as a header on mutating requests. Full design, rotation, and revocation
 behavior: [`docs/auth.md`](auth.md). Passwords, tokens, and secret values are
 never written to the audit log or CLI output.
 
+## 6a. The Linux Docker adapter's shape (Phase 13)
+
+Neither this document nor `docs/architecture.md` fixed a security shape for
+the Linux adapter before Phase 13 built it, beyond "the Agent drives the
+local Docker daemon" — so this is that decision, made explicit:
+
+- The Agent talks to the Docker daemon directly over its Unix socket
+  (`/var/run/docker.sock`, or `HEALER_DOCKER_SOCKET` for tests), issuing
+  fixed, structured Engine API calls (`agent/internal/dockerengine`) — never
+  shelling out to the `docker` CLI, never a command string built from
+  Control Plane input. Whoever can reach that socket already has root-
+  equivalent control of the host; the Agent is trusted with that on the
+  servers it's enrolled on, the same trust level the Windows adapter's
+  LocalSystem-installed service already carries.
+- Every managed container joins one shared bridge network per host
+  (`healer-apps`, created on demand). V1 does not isolate applications from
+  each other at the network layer beyond Docker's own per-container
+  namespace — no stated requirement for that existed, and adding it (a
+  network per application, or per-application firewall rules) is a
+  deliberate later change, not something to add incidentally.
+- Resource limits (`linux.cpu_limit`, `linux.memory_limit_mb` in
+  `healer.yaml`) are optional and administrator-set; omitted means
+  unlimited, matching how the Windows adapter also doesn't cap a Waitress
+  process's resource usage today.
+- Images: either built from a Dockerfile the administrator points at (no
+  arbitrary build args or `--privileged`), or pulled from an explicit,
+  administrator-supplied reference. V1 does not restrict which registries
+  can be pulled from and does not require digest pinning — the same trust
+  model as the Windows adapter's `python_executable`/source-folder path,
+  which is likewise administrator-supplied and not sandboxed further.
+- Containers never run `--privileged` and are never given extra Linux
+  capabilities beyond Docker's defaults; nothing in the Agent's container-
+  create payload requests either.
+
 ## 7. Explicit non-goals (do not add in V1)
 
 - No remote interactive shell to managed servers.

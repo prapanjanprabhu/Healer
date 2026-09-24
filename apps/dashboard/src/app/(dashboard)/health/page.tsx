@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { MetricsSummary } from "@/components/MetricsSummary";
 import type { Notification } from "@/lib/types";
 
 export default function HealthPage() {
@@ -30,6 +31,10 @@ export default function HealthPage() {
         Self-healing alerts — instances Healer could not automatically recover. Per-instance
         health, state, and failure reason are on each application&apos;s own page.
       </p>
+
+      <div style={{ marginTop: 20 }}>
+        <MetricsSummary />
+      </div>
 
       <div className="healer-card" style={{ maxWidth: 720, marginTop: 20 }}>
         <div className="healer-card-title">Notifications</div>

@@ -45,6 +45,15 @@ export function ValidatePanel({
     }
   }
 
+  async function deleteSecret(key: string) {
+    if (!confirm(`Delete the stored value for "${key}"? The application will read it as unset.`)) return;
+    const response = await apiFetch(`/applications/${applicationId}/secrets/${key}`, { method: "DELETE" });
+    if (response.ok) {
+      const listed = await apiFetch(`/applications/${applicationId}/secrets`);
+      if (listed.ok) setSecrets(await listed.json());
+    }
+  }
+
   const knownKeys = new Set(secrets.map((s) => s.key));
 
   return (
@@ -78,13 +87,21 @@ export function ValidatePanel({
       {secretNames.length > 0 && (
         <div className="healer-card" style={{ maxWidth: 640 }}>
           <div className="healer-card-title">Secrets</div>
-          <p className="healer-card-description" style={{ marginBottom: 12 }}>
+          <ul className="healer-issue-list" style={{ marginBottom: 12 }}>
             {secretNames.map((name) => (
-              <span key={name} style={{ marginRight: 8 }}>
-                {name}: {knownKeys.has(name) ? "set" : "not set"}
-              </span>
+              <li key={name} className="healer-issue healer-issue-info" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <span>
+                  <span className="healer-issue-field">{name}</span>
+                  {knownKeys.has(name) ? "set" : "not set"}
+                </span>
+                {knownKeys.has(name) && (
+                  <button type="button" onClick={() => deleteSecret(name)} style={{ flexShrink: 0 }}>
+                    Delete
+                  </button>
+                )}
+              </li>
             ))}
-          </p>
+          </ul>
 
           <form onSubmit={saveSecret}>
             <label className="healer-field">

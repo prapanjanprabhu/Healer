@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { DeployPanel } from "@/components/DeployPanel";
 import { GatewayPanel } from "@/components/GatewayPanel";
 import { InstanceTable } from "@/components/InstanceTable";
+import { LogViewer } from "@/components/LogViewer";
 import { ReleasePanel } from "@/components/ReleasePanel";
 import { ScalePanel } from "@/components/ScalePanel";
 import { ValidatePanel } from "@/components/ValidatePanel";
@@ -102,6 +103,7 @@ export default async function ApplicationDetailPage({ params }: { params: { id: 
         <GatewayPanel applicationId={application.id} hostname={config.domain.hostname} />
       )}
       <InstanceTable applicationId={application.id} />
+      <LogViewer applicationId={application.id} />
     </div>
   );
 }

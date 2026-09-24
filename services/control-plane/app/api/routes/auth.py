@@ -6,7 +6,8 @@ from app.core.config import settings
 from app.core.cookies import ACCESS_COOKIE_NAME, CSRF_COOKIE_NAME, REFRESH_COOKIE_NAME
 from app.core.security import create_access_token, generate_token
 from app.db.session import get_db
-from app.schemas.auth import LoginRequest, MessageResponse, UserOut
+from app.repositories.user_repository import UserRepository
+from app.schemas.auth import ChangePasswordRequest, LoginRequest, MessageResponse, UserOut
 from app.services import audit_service, auth_service
 from app.services.auth_service import AuthError
 
@@ -121,3 +122,39 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)) 
 @router.get("/me", response_model=UserOut)
 def me(current_user: CurrentUser = Depends(get_current_user)) -> UserOut:
     return UserOut(id=current_user.id, email=current_user.email, roles=sorted(current_user.roles))
+
+
+@router.post(
+    "/change-password", response_model=MessageResponse, dependencies=[Depends(verify_csrf)]
+)
+def change_password(
+    payload: ChangePasswordRequest,
+    response: Response,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    """Self-service password change — any authenticated user, their own
+    account only. Revokes every other refresh session (forces re-login
+    elsewhere), so this response also clears this request's own session
+    cookies; the caller must log in again with the new password.
+    """
+    user = UserRepository(db).get(current_user.id)
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="invalid or expired session")
+
+    try:
+        auth_service.change_password(
+            db, user, current_password=payload.current_password, new_password=payload.new_password
+        )
+    except AuthError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="current password is incorrect")
+
+    _clear_session_cookies(response)
+    audit_service.record(
+        db,
+        actor_id=current_user.id,
+        action="user.password_changed",
+        target_type="user",
+        target_id=str(current_user.id),
+    )
+    return MessageResponse(message="password changed — please log in again")

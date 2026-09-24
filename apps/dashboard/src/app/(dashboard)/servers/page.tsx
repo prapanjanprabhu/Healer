@@ -3,14 +3,14 @@ import { cookies } from "next/headers";
 import { CONTROL_PLANE_INTERNAL_URL } from "@/lib/config";
 import type { Server } from "@/lib/types";
 
-async function getServers(): Promise<Server[]> {
+async function getServers(): Promise<Server[] | null> {
   const cookieHeader = cookies().toString();
   const response = await fetch(`${CONTROL_PLANE_INTERNAL_URL}/servers`, {
     headers: cookieHeader ? { cookie: cookieHeader } : {},
     cache: "no-store",
   });
   if (!response.ok) {
-    return [];
+    return null;
   }
   return response.json();
 }
@@ -29,7 +29,11 @@ export default async function ServersPage() {
         Add Server
       </Link>
 
-      {servers.length === 0 ? (
+      {servers === null ? (
+        <div className="healer-error" style={{ marginTop: 20 }}>
+          Could not reach the Control Plane — servers are unavailable right now.
+        </div>
+      ) : servers.length === 0 ? (
         <div className="healer-empty-state" style={{ marginTop: 20 }}>
           No servers registered yet.
         </div>

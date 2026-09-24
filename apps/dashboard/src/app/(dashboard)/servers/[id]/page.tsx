@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { EnrollmentTokenPanel } from "@/components/EnrollmentTokenPanel";
+import { RevokeAgentButton } from "@/components/RevokeAgentButton";
 import { CONTROL_PLANE_INTERNAL_URL } from "@/lib/config";
 import type { EnrollmentToken, Server } from "@/lib/types";
 
@@ -60,6 +61,7 @@ export default async function ServerDetailPage({ params }: { params: { id: strin
           <dt>Last heartbeat</dt>
           <dd>{server.last_seen_at ? new Date(server.last_seen_at).toLocaleString() : "never"}</dd>
         </dl>
+        {server.agent_version && <RevokeAgentButton serverId={server.id} />}
       </div>
 
       {tokens ? (

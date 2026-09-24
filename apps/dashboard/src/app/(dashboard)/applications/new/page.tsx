@@ -13,7 +13,12 @@ const DEFAULT_WINDOWS: NonNullable<HealerYamlConfig["windows"]> = {
   settings_module: "",
 };
 
-const DEFAULT_LINUX: NonNullable<HealerYamlConfig["linux"]> = { internal_port: 8000 };
+const DEFAULT_LINUX: NonNullable<HealerYamlConfig["linux"]> = {
+  internal_port: 8000,
+  env: {},
+  cpu_limit: null,
+  memory_limit_mb: null,
+};
 
 export default function NewApplicationPage() {
   const router = useRouter();
@@ -28,6 +33,9 @@ export default function NewApplicationPage() {
   const [sourceLocation, setSourceLocation] = useState("");
   const [windows, setWindows] = useState(DEFAULT_WINDOWS);
   const [linux, setLinux] = useState(DEFAULT_LINUX);
+  const [envText, setEnvText] = useState("");
+  const [cpuLimit, setCpuLimit] = useState("");
+  const [memoryLimitMb, setMemoryLimitMb] = useState("");
   const [healthPath, setHealthPath] = useState("/health/");
   const [portStart, setPortStart] = useState(9034);
   const [portEnd, setPortEnd] = useState(9039);
@@ -63,7 +71,24 @@ export default function NewApplicationPage() {
       server_id: serverId || null,
       source: { type: sourceType, location: sourceLocation },
       windows: adapter === "windows-waitress-service" ? windows : null,
-      linux: adapter === "linux-docker" ? linux : null,
+      linux:
+        adapter === "linux-docker"
+          ? {
+              internal_port: linux.internal_port,
+              env: Object.fromEntries(
+                envText
+                  .split("\n")
+                  .map((line) => line.trim())
+                  .filter(Boolean)
+                  .map((line) => {
+                    const [key, ...rest] = line.split("=");
+                    return [(key ?? "").trim(), rest.join("=").trim()];
+                  }),
+              ),
+              cpu_limit: cpuLimit ? Number(cpuLimit) : null,
+              memory_limit_mb: memoryLimitMb ? Number(memoryLimitMb) : null,
+            }
+          : null,
       health: { path: healthPath, interval_seconds: 10, timeout_seconds: 5, healthy_threshold: 2, unhealthy_threshold: 3 },
       ports: { start: portStart, end: portEnd },
       replicas: { min: minReplicas, max: maxReplicas },
@@ -196,15 +221,49 @@ export default function NewApplicationPage() {
             </label>
           </>
         ) : (
-          <label className="healer-field">
-            Internal container port
-            <input
-              type="number"
-              required
-              value={linux.internal_port}
-              onChange={(e) => setLinux({ internal_port: Number(e.target.value) })}
-            />
-          </label>
+          <>
+            <label className="healer-field">
+              Internal container port
+              <input
+                type="number"
+                required
+                value={linux.internal_port}
+                onChange={(e) => setLinux({ ...linux, internal_port: Number(e.target.value) })}
+              />
+            </label>
+            <label className="healer-field">
+              Environment variables (one per line, KEY=value — literal, non-secret config only)
+              <textarea
+                rows={3}
+                value={envText}
+                onChange={(e) => setEnvText(e.target.value)}
+                placeholder={"MODE=production\nLOG_LEVEL=info"}
+              />
+            </label>
+            <div style={{ display: "flex", gap: 12 }}>
+              <label className="healer-field" style={{ flex: 1 }}>
+                CPU limit (fractional CPUs, optional)
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  placeholder="unlimited"
+                  value={cpuLimit}
+                  onChange={(e) => setCpuLimit(e.target.value)}
+                />
+              </label>
+              <label className="healer-field" style={{ flex: 1 }}>
+                Memory limit (MB, optional)
+                <input
+                  type="number"
+                  min="16"
+                  placeholder="unlimited"
+                  value={memoryLimitMb}
+                  onChange={(e) => setMemoryLimitMb(e.target.value)}
+                />
+              </label>
+            </div>
+          </>
         )}
 
         <label className="healer-field">

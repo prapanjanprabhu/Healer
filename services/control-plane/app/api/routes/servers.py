@@ -150,3 +150,30 @@ def revoke_enrollment_token(
         target_id=str(token.id),
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{server_id}/agent/revoke", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_agent(
+    server_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("manage_servers")),
+    _csrf: None = Depends(verify_csrf),
+) -> Response:
+    """Force-disconnects this server's Agent (if connected) and invalidates
+    its credential — for a decommissioned server or a suspected-compromised
+    credential. Re-enrolling it (a fresh enrollment token) works exactly
+    like first-time enrollment. See app/services/server_service.py.
+    """
+    agent = AgentRepository(db).get_by_server_id(server_id)
+    if agent is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="no agent enrolled for this server")
+
+    await server_service.revoke_agent(db, agent)
+    audit_service.record(
+        db,
+        actor_id=current_user.id,
+        action="server.agent_revoked",
+        target_type="server",
+        target_id=str(server_id),
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

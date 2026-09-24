@@ -66,6 +66,7 @@ var implementedCommandTypes = map[string]bool{
 	protocol.CommandDeployRelease: true,
 	protocol.CommandStartInstance: true,
 	protocol.CommandStopInstance:  true,
+	protocol.CommandCollectLogs:   true,
 }
 
 func TestEveryKnownCommandTypeIsSafelyHandledOrRejected(t *testing.T) {
@@ -102,7 +103,6 @@ func TestUnimplementedCommandTypesStayUnimplemented(t *testing.T) {
 	for _, commandType := range []string{
 		protocol.CommandRestartInstance,
 		protocol.CommandInspectInstance,
-		protocol.CommandCollectLogs,
 		protocol.CommandCollectMetrics,
 		protocol.CommandUpdateProxy,
 	} {

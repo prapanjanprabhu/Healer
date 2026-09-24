@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, require_permission, verify_csrf
-from app.db.models.application import Instance, Release
-from app.db.models.deployment import DeploymentLog, DeploymentStep
+from app.db.models.application import Application, Instance, Release
+from app.db.models.deployment import Deployment, DeploymentLog, DeploymentStep
 from app.db.models.enums import DeploymentStatus
 from app.db.session import get_db
 from app.repositories.deployment_repository import DeploymentRepository
@@ -15,21 +15,37 @@ from app.schemas.deployments import (
     DeploymentInstanceOut,
     DeploymentLogOut,
     DeploymentStepOut,
+    DeploymentSummaryOut,
 )
 from app.services.deployment_service import transition_deployment
 
 router = APIRouter(prefix="/deployments", tags=["deployments"])
 
 
-@router.get("", dependencies=[Depends(require_permission("view"))])
-def list_deployments(db: Session = Depends(get_db)) -> list[dict]:
+@router.get("", response_model=list[DeploymentSummaryOut])
+def list_deployments(
+    db: Session = Depends(get_db),
+    _current_user: CurrentUser = Depends(require_permission("view")),
+) -> list[DeploymentSummaryOut]:
+    stmt = (
+        select(Deployment, Application.name, Release.ref)
+        .join(Application, Application.id == Deployment.application_id)
+        .outerjoin(Release, Release.id == Deployment.release_id)
+        .order_by(Deployment.created_at.desc())
+        .limit(200)
+    )
     return [
-        {
-            "id": str(deployment.id),
-            "application_id": str(deployment.application_id),
-            "status": deployment.status.value,
-        }
-        for deployment in DeploymentRepository(db).list()
+        DeploymentSummaryOut(
+            id=deployment.id,
+            application_id=deployment.application_id,
+            application_name=application_name,
+            release_version=release_ref,
+            status=deployment.status.value,
+            kind=deployment.kind,
+            created_at=deployment.created_at,
+            updated_at=deployment.updated_at,
+        )
+        for deployment, application_name, release_ref in db.execute(stmt).all()
     ]
 
 

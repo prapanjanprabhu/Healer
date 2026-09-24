@@ -39,7 +39,12 @@ export interface HealerYamlConfig {
     wsgi_module: string;
     settings_module: string;
   } | null;
-  linux?: { internal_port: number } | null;
+  linux?: {
+    internal_port: number;
+    env?: Record<string, string>;
+    cpu_limit?: number | null;
+    memory_limit_mb?: number | null;
+  } | null;
   health: {
     path: string;
     interval_seconds: number;
@@ -162,6 +167,59 @@ export interface Release {
   status: string;
   is_active: boolean;
   created_at: string;
+}
+
+export interface MetricsSnapshot {
+  server_id: string;
+  cpu_percent: number;
+  memory_percent: number;
+  disk_percent: number;
+  recorded_at: string;
+}
+
+export interface LogSource {
+  id: string;
+  type: "stdout" | "stderr" | "deployment";
+  label: string;
+  instance_id: string | null;
+}
+
+export interface LogChunk {
+  lines: string[];
+  size: number;
+  end_offset: number;
+  truncated: boolean;
+  not_found: boolean;
+}
+
+export interface DeploymentSummary {
+  id: string;
+  application_id: string;
+  application_name: string;
+  release_version: string | null;
+  status: string;
+  kind: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserSummary {
+  id: string;
+  email: string;
+  roles: string[];
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actor_id: string | null;
+  actor_email: string | null;
+  action: string;
+  target_type: string;
+  target_id: string;
+  detail: Record<string, unknown> | null;
+  occurred_at: string;
 }
 
 export interface Instance {

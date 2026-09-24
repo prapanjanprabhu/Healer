@@ -2,9 +2,11 @@
 // compatibility floor it requires from a Control Plane.
 package version
 
-// Version is the Agent's build version, reported in agent.hello. A later
-// phase may inject this at build time via -ldflags instead of a constant.
-const Version = "0.5.0-dev"
+// Version is the Agent's build version, reported in agent.hello. A `var`
+// (not `const`) so a release build can inject the real version via
+// `-ldflags "-X github.com/healer-platform/agent/internal/version.Version=1.0.0"`
+// (see `make release-agent`); an unreleased/dev build keeps this default.
+var Version = "0.5.0-dev"
 
 // MinCompatibleProtocolVersion is the oldest wire protocol_version this
 // Agent build understands. It refuses to run against a Control Plane

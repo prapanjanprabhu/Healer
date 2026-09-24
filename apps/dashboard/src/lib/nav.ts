@@ -2,11 +2,11 @@ export interface NavItem {
   href: string;
   label: string;
   description: string;
+  // Omitted means every authenticated user sees this item. Mirrors
+  // src/lib/permissions.ts's permission names.
+  permission?: string;
 }
 
-// Mirrors the administrator-facing capabilities from the Healer V1 product
-// definition. Each route is a placeholder in Phase 1 — no data is wired up
-// yet, these establish the navigation shell the real views land in later.
 export const NAV_ITEMS: NavItem[] = [
   {
     href: "/servers",
@@ -37,5 +37,17 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/audit-log",
     label: "Audit Log",
     description: "History of administrative actions.",
+    permission: "view_audit",
+  },
+  {
+    href: "/users",
+    label: "Users",
+    description: "Manage administrator accounts and roles.",
+    permission: "manage_users",
+  },
+  {
+    href: "/settings",
+    label: "Settings",
+    description: "Your account and operational settings.",
   },
 ];

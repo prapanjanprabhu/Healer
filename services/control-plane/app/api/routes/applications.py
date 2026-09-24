@@ -32,12 +32,14 @@ from app.services import (
     audit_service,
     deployment_service,
     gateway_service,
+    instance_service,
     lock_service,
     release_service,
     scale_service,
     secret_service,
 )
 from app.services.deployment_service import DeploymentSetupError
+from app.services.instance_service import InstanceActionError
 from app.services.lock_service import OperationLockHeldError
 from app.services.release_service import MIGRATION_WARNING, ReleaseSetupError
 from app.services.scale_service import ScaleSetupError
@@ -460,6 +462,87 @@ def list_instances(
     if application is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
     return [InstanceOut(**vars(view)) for view in scale_service.list_instances(db, application_id)]
+
+
+def _get_instance_or_404(
+    db: Session, application_id: uuid.UUID, instance_id: uuid.UUID
+) -> Instance:
+    instance = db.scalars(
+        select(Instance).where(
+            Instance.id == instance_id, Instance.application_id == application_id
+        )
+    ).first()
+    if instance is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="instance not found")
+    return instance
+
+
+@router.post("/{application_id}/instances/{instance_id}/restart", response_model=InstanceOut)
+async def restart_instance(
+    application_id: uuid.UUID,
+    instance_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("restart")),
+    _csrf: None = Depends(verify_csrf),
+) -> InstanceOut:
+    """A manual, single-instance restart — administrator troubleshooting,
+    distinct from scaling or self-healing's automatic recovery. See
+    app/services/instance_service.py.
+    """
+    application = ApplicationRepository(db).get(application_id)
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
+    instance = _get_instance_or_404(db, application_id, instance_id)
+
+    try:
+        await instance_service.restart_instance(db, application, instance)
+    except InstanceActionError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    audit_service.record(
+        db,
+        actor_id=current_user.id,
+        action="instance.restart",
+        target_type="instance",
+        target_id=str(instance.id),
+        detail={"port": instance.port},
+    )
+    view = next(v for v in scale_service.list_instances(db, application_id) if v.id == instance.id)
+    return InstanceOut(**vars(view))
+
+
+@router.post("/{application_id}/instances/{instance_id}/stop", response_model=InstanceOut)
+async def stop_instance(
+    application_id: uuid.UUID,
+    instance_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission("stop")),
+    _csrf: None = Depends(verify_csrf),
+) -> InstanceOut:
+    """A manual, single-instance stop. Does not adjust
+    `Application.desired_replicas` — use the scale control afterward to
+    formally reduce capacity, or redeploy/rescale to restore it.
+    """
+    application = ApplicationRepository(db).get(application_id)
+    if application is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
+    instance = _get_instance_or_404(db, application_id, instance_id)
+
+    try:
+        await instance_service.stop_instance(db, application, instance)
+    except InstanceActionError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    audit_service.record(
+        db,
+        actor_id=current_user.id,
+        action="instance.stop",
+        target_type="instance",
+        target_id=str(instance.id),
+        detail={"port": instance.port},
+    )
+    view = next(v for v in scale_service.list_instances(db, application_id) if v.id == instance.id)
+    return InstanceOut(**vars(view))
 
 
 @router.post("/{application_id}/secrets", status_code=status.HTTP_204_NO_CONTENT)

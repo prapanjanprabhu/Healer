@@ -10,6 +10,9 @@ out/
 apps/dashboard/.next/
 apps/dashboard/node_modules/
 npm-debug.log*
+apps/dashboard/test-results/
+apps/dashboard/playwright-report/
+apps/dashboard/coverage/
 
 # Python
 __pycache__/
@@ -23,9 +26,13 @@ venv/
 
 # Go
 agent/bin/
+agent/dist/
 *.exe
 *.exe~
 *.test
+
+# Database backups (operator-generated, never committed)
+backups/
 
 # Docker / data
 deploy/data/

@@ -42,6 +42,14 @@ class WindowsAdapterConfig(BaseModel):
 
 class LinuxAdapterConfig(BaseModel):
     internal_port: int = Field(ge=1, le=65535)
+    # Literal, non-secret environment variables to set in the container.
+    # Secret values (from `secrets:` below) are injected by the Control
+    # Plane at start_instance time and are never written into this config.
+    env: dict[str, str] = Field(default_factory=dict)
+    # docker's `--cpus` (fractional CPUs) and `-m`/`--memory` (MiB) limits.
+    # Both optional: omitted means "no limit", not "use the host default".
+    cpu_limit: float | None = Field(default=None, gt=0)
+    memory_limit_mb: int | None = Field(default=None, ge=16)
 
 
 class HealthConfig(BaseModel):

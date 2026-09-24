@@ -151,5 +151,56 @@ Full instructions: [`docs/development.md`](docs/development.md).
   Release retention, a fixed expand/migrate/contract advisory on every
   deploy, and a per-deployment timeline/failure reason round it out. See
   [`docs/blue-green-deployment.md`](docs/blue-green-deployment.md).
+- **Phase 12 — done:** metrics and logs, without Prometheus, Loki, or
+  Grafana. Short-term PostgreSQL retention (default seven days) and
+  scheduled cleanup for the Agent's existing CPU/RAM/disk heartbeat
+  snapshots, plus a bounded read API and dashboard summary cards/
+  sparklines. A new `collect_logs` Agent command reads an instance's
+  stdout/stderr with a byte- and line-bounded tail; a log-source registry,
+  a bounded recent-log endpoint, and a Server-Sent-Events live tail expose
+  it to the dashboard, with every line redacted for secrets/credentials
+  before it leaves the Control Plane. Local instance logs rotate at each
+  service start rather than growing unbounded forever. See
+  [`docs/metrics-and-logs.md`](docs/metrics-and-logs.md).
+- **Phase 13 — done:** the Linux Docker adapter. `deploy_release` builds a
+  tagged image from a Dockerfile or pulls an immutable image reference;
+  `start_instance` runs it as a container on a shared bridge network with
+  administrator-set environment/resource limits and the application's
+  secrets injected at start time; `stop_instance` stops and removes it. The
+  same blue-green deploy/rollback, scaling, self-healing, and Nginx gateway
+  routing every Windows application already gets, now adapter-agnostic
+  across both. The Agent talks to the local Docker daemon directly over its
+  Unix socket — fixed, structured Engine API calls, never a shelled-out
+  `docker` command. See
+  [`docs/linux-docker-adapter.md`](docs/linux-docker-adapter.md).
+- **Phase 14 — done:** the dashboard, complete. Every implemented workflow
+  is reachable without a direct API call: a real Overview, Deployments list
+  and Deployment Details timeline, Certificates, Audit Log, and a new
+  Administrator-only Users page, plus per-instance restart/stop buttons and
+  a confirm-gated `[-]`/`[+]` scaling control on Application Details.
+  Buttons a user's role doesn't permit are hidden, not just server-side
+  rejected. Component tests (Vitest + React Testing Library) and an
+  end-to-end suite (Playwright, run against the real dev stack) exist for
+  the first time. See [`docs/dashboard.md`](docs/dashboard.md).
+- **Phase 15 — done:** hardening, testing, packaging, release. Real
+  encryption at rest for application secrets (Fernet, replacing a
+  plaintext gap tracked since Phase 6); Agent credential revocation
+  (previously only pre-enrollment tokens could be revoked); Control Plane
+  restart recovery — a deployment or instance genuinely stuck mid-
+  transition when the process died is reconciled to a clean failed state
+  at the next startup (a real orphaned-state bug, found live during this
+  phase, is fixed by this). A real concurrency test proves the operation
+  lock is genuinely race-safe under simultaneous access; new CSRF/expired-
+  token tests close a gap where only auth routes were checked. A real
+  `make backup`/`make restore` rehearsal round-tripped the live database;
+  a real concurrent load test sustained peak traffic with every instance
+  staying healthy, while confirming user traffic never touches Healer's
+  own database (the "two paths, kept separate" design, observed under
+  load, not just asserted). Versioned, checksummed Agent release binaries
+  for both platforms. Full install/uninstall, firewall, upgrade/rollback,
+  troubleshooting, and operations-runbook docs, an API reference, and an
+  explicit, re-verifiable confirmation that Prometheus/Grafana/Loki/ACME/
+  Kubernetes/Buildpacks/remote-shell are all genuinely absent. See
+  [`docs/release.md`](docs/release.md).
 
 V1 is feature-complete per the master plan.

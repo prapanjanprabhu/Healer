@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import generate_token, hash_token, verify_password
+from app.core.security import generate_token, hash_password, hash_token, verify_password
 from app.db.models.user import RefreshSession, User
 from app.repositories.user_repository import UserRepository
 
@@ -25,6 +25,16 @@ def authenticate(session: Session, email: str, password: str) -> User:
 
 def get_role_names(user: User) -> list[str]:
     return sorted({user_role.role.name for user_role in user.roles})
+
+
+def change_password(
+    session: Session, user: User, *, current_password: str, new_password: str
+) -> None:
+    if not verify_password(current_password, user.password_hash):
+        raise AuthError("invalid_credentials")
+    user.password_hash = hash_password(new_password)
+    _revoke_all_for_user(session, user.id)  # force re-login on every other session
+    session.commit()
 
 
 def create_refresh_session(session: Session, user: User) -> tuple[str, RefreshSession]:

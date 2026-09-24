@@ -98,6 +98,14 @@ func Run(spec LaunchSpec) func(ctx context.Context) error {
 	}
 }
 
+// maxLogSizeBytes bounds how large an instance log file grows before it is
+// rotated. There is no live rotation while the process is writing (that
+// would need a copytruncate-style daemon); instead, each service start
+// (a fresh deploy, a restart, a self-healing recovery) checks the existing
+// file once and rotates it — bounding growth over the instance's lifetime
+// without needing anything running continuously.
+const maxLogSizeBytes = 10 * 1024 * 1024
+
 // openLog opens a log file for appending, creating it and its directory if
 // needed. An empty path means "discard", not an error.
 func openLog(path string) (io.WriteCloser, error) {
@@ -107,11 +115,27 @@ func openLog(path string) (io.WriteCloser, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, fmt.Errorf("create log directory for %s: %w", path, err)
 	}
+	rotateIfLarge(path)
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o640)
 	if err != nil {
 		return nil, fmt.Errorf("open log file %s: %w", path, err)
 	}
 	return file, nil
+}
+
+// rotateIfLarge renames path to path+".1" (replacing any previous backup)
+// when it has grown past maxLogSizeBytes. Best-effort: a rotation failure
+// (e.g. a lingering handle from an unrelated process) must never prevent
+// the instance itself from starting, so errors are swallowed here rather
+// than propagated.
+func rotateIfLarge(path string) {
+	info, err := os.Stat(path)
+	if err != nil || info.Size() < maxLogSizeBytes {
+		return
+	}
+	backup := path + ".1"
+	_ = os.Remove(backup)
+	_ = os.Rename(path, backup)
 }
 
 func closeLog(w io.WriteCloser) {

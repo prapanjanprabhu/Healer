@@ -44,6 +44,7 @@ from app.services.deployment_service import (
     DeploymentSetupError,
     _allocate_instance,
     _build_start_instance_payload,
+    _build_stop_instance_payload,
     transition_deployment,
 )
 
@@ -240,7 +241,7 @@ async def _scale_up(
         InstanceRepository(session).transition(instance, InstanceStatus.STARTING)
         session.commit()
 
-        start_payload = _build_start_instance_payload(release, instance, config)
+        start_payload = _build_start_instance_payload(session, release, instance, config)
         start_command = await command_service.submit_command_and_wait(
             session,
             agent,
@@ -326,7 +327,7 @@ async def _scale_down(
             session,
             agent,
             AgentCommandType.STOP_INSTANCE,
-            {"service_name": instance.service_name},
+            _build_stop_instance_payload(instance, config),
             idempotency_key=f"stop-instance:{instance.id}",
             ttl_seconds=60,
             wait_seconds=45.0,

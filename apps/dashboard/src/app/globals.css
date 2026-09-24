@@ -216,9 +216,50 @@ a {
   color: var(--healer-text);
 }
 
-.healer-field input:focus {
-  outline: none;
-  border-color: var(--healer-accent);
+.healer-field input:focus-visible {
+  outline: 2px solid var(--healer-accent);
+  outline-offset: 1px;
+}
+
+/* A single, consistent focus ring for every interactive element — never
+   removed without a replacement (a prior version did `outline: none` here
+   with no visible substitute, which silently broke keyboard navigation). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--healer-accent);
+  outline-offset: 2px;
+}
+
+.healer-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.healer-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--healer-accent);
+  color: #06111f;
+  padding: 8px 14px;
+  border-radius: 0 0 6px 0;
+  font-weight: 600;
+}
+
+.healer-skip-link:focus {
+  left: 0;
 }
 
 .healer-error {
@@ -399,4 +440,72 @@ button {
   margin-top: 6px;
   overflow-wrap: anywhere;
   font-size: 0.8rem;
+}
+
+.healer-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--healer-border);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
+.healer-stepper button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+  font-size: 1rem;
+}
+
+.healer-field-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--healer-text-muted);
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+/* Responsive layout: below this width the sidebar becomes a horizontal top
+   bar instead of a fixed-width column, and the main content drops its
+   generous desktop padding/max-width so pages fit a phone viewport without
+   horizontal scrolling. */
+@media (max-width: 768px) {
+  .healer-shell {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .healer-sidebar {
+    width: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--healer-border);
+    padding: 16px;
+  }
+
+  .healer-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .healer-sidebar-user {
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+
+  .healer-main {
+    padding: 20px 16px;
+    max-width: 100%;
+  }
+
+  .healer-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .healer-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
 }

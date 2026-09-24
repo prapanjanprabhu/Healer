@@ -29,7 +29,7 @@ directly (see `app/repositories/base.py`).
 | `deployments`, `deployment_steps`, `deployment_logs` | A deploy of one release with a target instance count; its steps and log lines. |
 | `domains`, `upstream_groups`, `upstream_instances` | The hostname an application answers on and which instances sit behind it, and its existing CRT/KEY paths — `domains` feeds the Gateway Manager (see [`docs/gateway-routing.md`](../docs/gateway-routing.md)); `upstream_groups`/`upstream_instances` exist in the schema but aren't populated yet (V1 computes upstream membership directly from `instances` at sync time). |
 | `health_checks`, `health_check_results` | Per-application health check configuration and per-instance results. |
-| `secret_records` | Encrypted application/global secrets (`encrypted_value` — encryption itself is implemented when secrets management ships). |
+| `secret_records` | Encrypted application secrets — `encrypted_value` is a Fernet ciphertext (`app/core/secret_crypto.py`, Phase 15), never plaintext, and never returned through an API response (see `docs/app-validation.md` and `app/services/secret_service.py`). |
 | `metrics_snapshots` | Periodic CPU/RAM/disk snapshots per server, pushed by the Agent. |
 | `audit_logs` | Administrative action history shown in the dashboard's Audit Log view. |
 | `notifications` | In-app notifications, optionally scoped to a user. |

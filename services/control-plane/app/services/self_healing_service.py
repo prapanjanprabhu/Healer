@@ -163,7 +163,7 @@ async def _restart(session: Session, agent, release: Release, instance: Instance
     Agent's own idempotent handling (stop and remove any existing service
     under that name before creating a fresh one) *is* the restart.
     """
-    payload = _build_start_instance_payload(release, instance, config)
+    payload = _build_start_instance_payload(session, release, instance, config)
     command = await command_service.submit_command_and_wait(
         session,
         agent,
@@ -224,7 +224,7 @@ async def _replace(
         {"replacement_instance_id": str(replacement.id), "replacement_port": replacement.port},
     )
 
-    start_payload = _build_start_instance_payload(release, replacement, config)
+    start_payload = _build_start_instance_payload(session, release, replacement, config)
     command = await command_service.submit_command_and_wait(
         session,
         agent,

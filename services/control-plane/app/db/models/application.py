@@ -108,8 +108,13 @@ class Release(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     # Populated from the Agent's deploy_release result once it succeeds —
     # absolute paths on the target server, not meaningful until then.
+    # Windows-adapter fields.
     release_dir: Mapped[str | None] = mapped_column(Text, nullable=True)
     venv_python: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Linux-adapter field: the built (tagged) or pulled (immutable) image
+    # reference this release runs from — set from deploy_release's result,
+    # same as release_dir/venv_python are for Windows.
+    image_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Instance(UUIDPrimaryKeyMixin, TimestampMixin, Base):

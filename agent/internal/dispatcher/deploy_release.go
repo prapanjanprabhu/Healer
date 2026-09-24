@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/healer-platform/agent/internal/config"
+	"github.com/healer-platform/agent/internal/dockerengine"
 )
 
 type deploySource struct {
@@ -34,11 +35,28 @@ type deployWindows struct {
 	Exclude          []string `json:"exclude"`
 }
 
+type deployLinux struct {
+	InternalPort  int               `json:"internal_port"`
+	Env           map[string]string `json:"env"`
+	CPULimit      float64           `json:"cpu_limit"`
+	MemoryLimitMB int               `json:"memory_limit_mb"`
+}
+
 type deployReleasePayload struct {
+	Adapter        string         `json:"adapter"`
 	AppSlug        string         `json:"app_slug"`
 	ReleaseVersion string         `json:"release_version"`
 	Source         deploySource   `json:"source"`
 	Windows        *deployWindows `json:"windows,omitempty"`
+	Linux          *deployLinux   `json:"linux,omitempty"`
+}
+
+// dockerBuildExcludeDirs are directory basenames never sent as part of a
+// Docker build context — the same version-control/cache junk
+// snapshotSource already excludes for the Windows adapter.
+var dockerBuildExcludeDirs = map[string]bool{
+	".git": true, ".hg": true, ".svn": true, "__pycache__": true,
+	"node_modules": true, ".pytest_cache": true, ".mypy_cache": true,
 }
 
 // deployStepOrder is the fixed pipeline every deploy_release result
@@ -76,6 +94,16 @@ func HandleDeployRelease(ctx context.Context, raw json.RawMessage) (map[string]a
 		return nil, err
 	}
 
+	if payload.Adapter == "linux-docker" {
+		return deployLinuxRelease(ctx, payload)
+	}
+	return deployWindowsRelease(ctx, payload)
+}
+
+// deployWindowsRelease is Phase 7's original deploy_release pipeline,
+// unchanged — a clean source snapshot, a dedicated virtualenv, and Django's
+// own check/migrate/collectstatic.
+func deployWindowsRelease(ctx context.Context, payload deployReleasePayload) (map[string]any, error) {
 	runner := &stepRunner{}
 
 	// Only folder sources are implemented. A git source is reported as a
@@ -189,6 +217,22 @@ func validateDeployPayload(payload deployReleasePayload) error {
 	if err := validPathSegment("release_version", payload.ReleaseVersion); err != nil {
 		return err
 	}
+
+	if payload.Adapter == "linux-docker" {
+		switch payload.Source.Type {
+		case "dockerfile", "image":
+		default:
+			return fmt.Errorf("invalid deploy_release payload: unsupported source type %q for linux-docker", payload.Source.Type)
+		}
+		if strings.TrimSpace(payload.Source.Location) == "" {
+			return errors.New("invalid deploy_release payload: source.location must not be empty")
+		}
+		if payload.Linux == nil {
+			return errors.New("invalid deploy_release payload: missing linux config")
+		}
+		return nil
+	}
+
 	switch payload.Source.Type {
 	case "folder", "git":
 	default:
@@ -213,6 +257,64 @@ func validateDeployPayload(payload deployReleasePayload) error {
 		}
 	}
 	return nil
+}
+
+// deployLinuxRelease builds (from a Dockerfile) or pulls (an immutable
+// image reference) this release's container image and tags/records it —
+// the Linux-adapter equivalent of deployWindowsRelease's venv+snapshot
+// pipeline. start_instance (not this command) actually runs a container
+// from the resulting image.
+func deployLinuxRelease(ctx context.Context, payload deployReleasePayload) (map[string]any, error) {
+	runner := &stepRunner{}
+	client := dockerengine.New()
+	tag := fmt.Sprintf("healer-%s:%s", payload.AppSlug, payload.ReleaseVersion)
+	var imageRef string
+
+	runner.run("docker_check", func() (string, error) {
+		pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := client.Ping(pingCtx); err != nil {
+			return "", fmt.Errorf("docker daemon is not reachable: %w", err)
+		}
+		return "docker daemon is reachable", nil
+	})
+
+	runner.run("build_or_pull", func() (string, error) {
+		switch payload.Source.Type {
+		case "dockerfile":
+			contextDir := payload.Source.Location
+			dockerfileRel := "Dockerfile"
+			info, err := os.Stat(contextDir)
+			if err != nil {
+				return "", fmt.Errorf("source.location %s: %w", contextDir, err)
+			}
+			if !info.IsDir() {
+				// location names the Dockerfile itself; the build context
+				// is its parent directory.
+				dockerfileRel = filepath.Base(contextDir)
+				contextDir = filepath.Dir(contextDir)
+			}
+			if err := client.BuildImage(ctx, contextDir, dockerfileRel, tag, dockerBuildExcludeDirs); err != nil {
+				return "", fmt.Errorf("docker build failed: %w", err)
+			}
+			imageRef = tag
+			return fmt.Sprintf("built image %s", tag), nil
+		case "image":
+			if err := client.PullImage(ctx, payload.Source.Location); err != nil {
+				return "", fmt.Errorf("docker pull failed: %w", err)
+			}
+			imageRef = payload.Source.Location
+			return fmt.Sprintf("pulled image %s", imageRef), nil
+		default:
+			return "", fmt.Errorf("unsupported source type %q for linux-docker", payload.Source.Type)
+		}
+	})
+
+	result := map[string]any{"ok": runner.ok(), "steps": runner.steps, "image_ref": ""}
+	if runner.ok() {
+		result["image_ref"] = imageRef
+	}
+	return result, nil
 }
 
 func validPathSegment(name, value string) error {

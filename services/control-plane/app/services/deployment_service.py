@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 from pathlib import PureWindowsPath
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -21,7 +22,13 @@ from app.repositories.agent_repository import AgentRepository
 from app.repositories.deployment_repository import DeploymentRepository
 from app.repositories.instance_repository import InstanceRepository
 from app.schemas.healer_yaml import HealerYamlV1
-from app.services import application_service, command_service, gateway_service, lock_service
+from app.services import (
+    application_service,
+    command_service,
+    gateway_service,
+    lock_service,
+    secret_service,
+)
 
 
 def transition_deployment(
@@ -87,11 +94,12 @@ def start_deployment(
             "application is already deployed — use POST /applications/{id}/releases "
             "for a blue-green update, or /rollback to restore a previous release"
         )
-    if config.adapter != "windows-waitress-service" or config.windows is None:
-        raise DeploymentSetupError(
-            f"adapter {config.adapter!r} is not deployable yet — only "
-            "windows-waitress-service is implemented in this phase"
-        )
+    if config.adapter == "windows-waitress-service" and config.windows is None:
+        raise DeploymentSetupError("adapter windows-waitress-service requires a windows: section")
+    if config.adapter == "linux-docker" and config.linux is None:
+        raise DeploymentSetupError("adapter linux-docker requires a linux: section")
+    if config.adapter not in ("windows-waitress-service", "linux-docker"):
+        raise DeploymentSetupError(f"adapter {config.adapter!r} is not implemented")
     if config.server_id is None:
         raise DeploymentSetupError("no target server selected")
 
@@ -239,7 +247,8 @@ def _persist_agent_outcome(session: Session, deployment: Deployment, command) ->
 def _build_deploy_release_payload(
     application: Application, release: Release, config: HealerYamlV1
 ) -> dict:
-    return {
+    payload: dict[str, Any] = {
+        "adapter": config.adapter,
         "app_slug": application.slug,
         "release_version": release.ref,
         "source": {
@@ -247,8 +256,12 @@ def _build_deploy_release_payload(
             "location": config.source.location,
             "ref": config.source.ref,
         },
-        "windows": config.windows.model_dump(),
     }
+    if config.adapter == "windows-waitress-service" and config.windows is not None:
+        payload["windows"] = config.windows.model_dump()
+    elif config.adapter == "linux-docker" and config.linux is not None:
+        payload["linux"] = config.linux.model_dump()
+    return payload
 
 
 def _shared_log_dir(release_dir: str) -> str:
@@ -256,7 +269,10 @@ def _shared_log_dir(release_dir: str) -> str:
     directory the Agent maintains alongside it is `<app_dir>\\shared\\logs`.
     Pure string manipulation (no filesystem access, no OS-specific env
     lookup): the Control Plane never learns the Agent's actual data-dir
-    root any other way, so it derives the sibling path instead.
+    root any other way, so it derives the sibling path instead. Windows
+    adapter only — a Docker container has no equivalent release directory
+    (see log_service.py, which reads container logs through the Agent's
+    `docker logs` path instead of a shared log file for linux-docker).
     """
     release_path = PureWindowsPath(release_dir)
     app_dir = release_path.parent.parent
@@ -264,17 +280,41 @@ def _shared_log_dir(release_dir: str) -> str:
 
 
 def _build_start_instance_payload(
-    release: Release, instance: Instance, config: HealerYamlV1
+    session: Session, release: Release, instance: Instance, config: HealerYamlV1
 ) -> dict:
-    return {
+    payload: dict[str, Any] = {
+        "adapter": config.adapter,
         "service_name": instance.service_name,
-        "release_dir": release.release_dir,
-        "venv_python": release.venv_python,
-        "wsgi_module": config.windows.wsgi_module,
-        "host": "127.0.0.1",
         "port": instance.port,
-        "log_dir": _shared_log_dir(release.release_dir),
     }
+    if config.adapter == "windows-waitress-service" and config.windows is not None:
+        windows = config.windows
+        release_dir = release.release_dir or ""
+        payload.update(
+            {
+                "release_dir": release.release_dir,
+                "venv_python": release.venv_python,
+                "wsgi_module": windows.wsgi_module,
+                "host": "127.0.0.1",
+                "log_dir": _shared_log_dir(release_dir),
+            }
+        )
+    elif config.adapter == "linux-docker" and config.linux is not None:
+        linux = config.linux
+        env = dict(linux.env)
+        env.update(secret_service.get_secret_dict(session, instance.application_id))
+        payload["linux"] = {
+            "image_ref": release.image_ref,
+            "internal_port": linux.internal_port,
+            "env": env,
+            "cpu_limit": linux.cpu_limit,
+            "memory_limit_mb": linux.memory_limit_mb,
+        }
+    return payload
+
+
+def _build_stop_instance_payload(instance: Instance, config: HealerYamlV1) -> dict:
+    return {"adapter": config.adapter, "service_name": instance.service_name}
 
 
 async def run_deployment(session: Session, deployment_id: uuid.UUID) -> None:
@@ -335,6 +375,7 @@ async def run_deployment(session: Session, deployment_id: uuid.UUID) -> None:
             result = deploy_command.result or {}
             release.release_dir = result.get("release_dir")
             release.venv_python = result.get("venv_python")
+            release.image_ref = result.get("image_ref")
             release.status = ReleaseStatus.READY
         else:
             release.status = ReleaseStatus.FAILED
@@ -349,7 +390,7 @@ async def run_deployment(session: Session, deployment_id: uuid.UUID) -> None:
         InstanceRepository(session).transition(instance, InstanceStatus.STARTING)
         session.commit()
 
-        start_payload = _build_start_instance_payload(release, instance, config)
+        start_payload = _build_start_instance_payload(session, release, instance, config)
         start_command = await command_service.submit_command_and_wait(
             session,
             agent,

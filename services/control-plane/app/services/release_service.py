@@ -46,6 +46,7 @@ from app.services.deployment_service import (
     _allocate_instance,
     _build_deploy_release_payload,
     _build_start_instance_payload,
+    _build_stop_instance_payload,
     _persist_agent_outcome,
     transition_deployment,
 )
@@ -146,7 +147,13 @@ def start_rollback(
         raise ReleaseSetupError("release not found for this application")
     if target.id == application.active_release_id:
         raise ReleaseSetupError("that release is already active")
-    if target.status != ReleaseStatus.READY or not target.release_dir or not target.venv_python:
+    config = application_service.config_from_application(application)
+    built = (
+        (target.release_dir and target.venv_python)
+        if config.adapter == "windows-waitress-service"
+        else target.image_ref
+    )
+    if target.status != ReleaseStatus.READY or not built:
         raise ReleaseSetupError(
             "release is not available to roll back to "
             "(never finished building, or has since been pruned)"
@@ -192,6 +199,7 @@ async def _build_release(
         result = command.result or {}
         release.release_dir = result.get("release_dir")
         release.venv_python = result.get("venv_python")
+        release.image_ref = result.get("image_ref")
         release.status = ReleaseStatus.READY
     else:
         release.status = ReleaseStatus.FAILED
@@ -200,14 +208,14 @@ async def _build_release(
 
 
 async def _stop_instances(
-    session: Session, deployment: Deployment, agent, instances: list[Instance]
+    session: Session, deployment: Deployment, agent, instances: list[Instance], config
 ) -> None:
     for instance in instances:
         stop_command = await command_service.submit_command_and_wait(
             session,
             agent,
             AgentCommandType.STOP_INSTANCE,
-            {"service_name": instance.service_name},
+            _build_stop_instance_payload(instance, config),
             idempotency_key=f"abort-stop-instance:{instance.id}",
             ttl_seconds=60,
             wait_seconds=45.0,
@@ -255,14 +263,14 @@ async def _start_and_health_gate(
             )
         except DeploymentSetupError as exc:
             _log(session, deployment, "error", str(exc))
-            await _stop_instances(session, deployment, agent, started)
+            await _stop_instances(session, deployment, agent, started, config)
             return None
 
         instance.deployment_id = deployment.id
         InstanceRepository(session).transition(instance, InstanceStatus.STARTING)
         session.commit()
 
-        start_payload = _build_start_instance_payload(release, instance, config)
+        start_payload = _build_start_instance_payload(session, release, instance, config)
         start_command = await command_service.submit_command_and_wait(
             session,
             agent,
@@ -278,7 +286,7 @@ async def _start_and_health_gate(
         if not start_ok:
             InstanceRepository(session).transition(instance, InstanceStatus.FAILED)
             session.commit()
-            await _stop_instances(session, deployment, agent, started)
+            await _stop_instances(session, deployment, agent, started, config)
             return None
 
         healthy = True
@@ -300,7 +308,7 @@ async def _start_and_health_gate(
             )
             InstanceRepository(session).transition(instance, InstanceStatus.FAILED)
             session.commit()
-            await _stop_instances(session, deployment, agent, started)
+            await _stop_instances(session, deployment, agent, started, config)
             return None
 
         InstanceRepository(session).transition(instance, InstanceStatus.RUNNING)
@@ -316,6 +324,7 @@ async def _drain_old_release(
     application: Application,
     agent,
     old_release_id: uuid.UUID,
+    config,
 ) -> None:
     old_instances = session.scalars(
         select(Instance).where(
@@ -339,7 +348,7 @@ async def _drain_old_release(
             session,
             agent,
             AgentCommandType.STOP_INSTANCE,
-            {"service_name": instance.service_name},
+            _build_stop_instance_payload(instance, config),
             idempotency_key=f"stop-instance:{instance.id}",
             ttl_seconds=60,
             wait_seconds=45.0,
@@ -375,9 +384,10 @@ async def _fail(
     agent=None,
     cleanup_release: Release | None = None,
     cleanup_instances: list[Instance] | None = None,
+    config=None,
 ) -> None:
     if cleanup_instances and agent is not None:
-        await _stop_instances(session, deployment, agent, cleanup_instances)
+        await _stop_instances(session, deployment, agent, cleanup_instances, config)
     if cleanup_release is not None and cleanup_release.status != ReleaseStatus.READY:
         cleanup_release.status = ReleaseStatus.FAILED
     deployment.failure_reason = reason
@@ -466,11 +476,14 @@ async def run_release_switch(session: Session, deployment_id: uuid.UUID) -> None
                     agent=agent,
                     cleanup_release=release,
                     cleanup_instances=new_instances,
+                    config=config,
                 )
                 return
 
         if old_release_id is not None:
-            await _drain_old_release(session, deployment, application, agent, old_release_id)
+            await _drain_old_release(
+                session, deployment, application, agent, old_release_id, config
+            )
 
         _prune_old_releases(session, application)
         transition_deployment(session, deployment, DeploymentStatus.SUCCEEDED)
