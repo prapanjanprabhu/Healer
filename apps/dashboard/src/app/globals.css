@@ -1,11 +1,18 @@
-:root {
-  --healer-bg: #0b0f14;
-  --healer-surface: #121821;
-  --healer-border: #232c38;
-  --healer-text: #e6edf3;
-  --healer-text-muted: #8b98a5;
-  --healer-accent: #4f9dff;
-}
+/* Healer dashboard design system.
+ *
+ * The app shell (AppShell.tsx) and interactive chrome (nav drawer, tooltips,
+ * avatar, badges) are real Radix Themes components — dark mode, color
+ * scales and spacing all come from Radix's own CSS custom properties
+ * (--accent-*, --gray-*, --space-*, --radius-*), scoped under the
+ * `.radix-themes` class the <Theme> provider renders in app/layout.tsx.
+ * Everything below reads those same variables rather than hardcoded hex
+ * values, so this custom layer and Radix's own components share one
+ * palette instead of visually clashing. Plain HTML form elements (most
+ * pages still use native <button>/<input>/<select>, not Radix's styled
+ * form primitives) are themed to match that palette here, so the whole
+ * app reads as one system even where a page hasn't been rebuilt in Radix
+ * components directly.
+ */
 
 * {
   box-sizing: border-box;
@@ -15,8 +22,12 @@ html,
 body {
   padding: 0;
   margin: 0;
-  background: var(--healer-bg);
-  color: var(--healer-text);
+  min-height: 100%;
+}
+
+body {
+  background: var(--gray-1);
+  color: var(--gray-12);
   font-family:
     -apple-system,
     BlinkMacSystemFont,
@@ -27,69 +38,196 @@ body {
     sans-serif;
 }
 
+/* The Theme provider's own root element — stretch it to the viewport so
+   percentage/100vh heights inside the shell resolve correctly. Also where
+   a handful of older components' inline styles read `--healer-*` custom
+   properties (LogViewer, DeploymentTimeline, Sparkline, the Overview
+   page) — those were never actually defined before this rewrite either,
+   so they always silently used their hardcoded fallback hex values;
+   defined here against the same Radix scale as everything else so they
+   pick up the real theme instead. */
+.radix-themes {
+  min-height: 100vh;
+  --healer-error: var(--red-11);
+  --healer-warning: var(--amber-11);
+  --healer-muted: var(--gray-10);
+  --healer-code-bg: var(--gray-2);
+  --healer-code-fg: var(--gray-12);
+}
+
 a {
   color: inherit;
   text-decoration: none;
 }
+
+/* ---------------------------------------------------------------------
+   App shell: a persistent icon-accented rail on wide viewports, a sticky
+   translucent top bar with a slide-in drawer below ~1024px. Two distinct
+   responsive presentations of the same nav, not one layout that just
+   reflows.
+   --------------------------------------------------------------------- */
 
 .healer-shell {
   display: flex;
   min-height: 100vh;
 }
 
-.healer-sidebar {
-  width: 240px;
+.healer-rail {
+  width: 264px;
   flex-shrink: 0;
-  border-right: 1px solid var(--healer-border);
-  background: var(--healer-surface);
-  padding: 24px 16px;
-}
-
-.healer-brand {
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.healer-brand-subtitle {
-  font-size: 0.75rem;
-  color: var(--healer-text-muted);
-  margin-bottom: 24px;
-}
-
-.healer-nav {
+  border-right: 1px solid var(--gray-a5);
+  background: var(--color-panel-solid);
+  position: sticky;
+  top: 0;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
-.healer-nav-item {
-  padding: 8px 12px;
-  border-radius: 6px;
+.healer-brand-block {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+.healer-brand-text {
+  background: linear-gradient(135deg, var(--accent-11), var(--accent-9));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.healer-rail-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-3);
+  color: var(--gray-11);
   font-size: 0.9rem;
-  color: var(--healer-text-muted);
 }
 
-.healer-nav-item:hover {
-  background: var(--healer-border);
-  color: var(--healer-text);
+.healer-rail-link:hover {
+  background: var(--accent-a3);
+  color: var(--gray-12);
+}
+
+.healer-rail-link[data-active] {
+  background: var(--accent-a4);
+  color: var(--accent-12);
+}
+
+.healer-rail-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gray-a6);
+  flex-shrink: 0;
+  transition: background-color 120ms ease;
+}
+
+.healer-rail-link[data-active] .healer-rail-dot {
+  background: var(--accent-9);
+  box-shadow: 0 0 0 3px var(--accent-a4);
+}
+
+.healer-rail-footer {
+  border-top: 1px solid var(--gray-a4);
+  padding: 12px;
+}
+
+.healer-user-card {
+  border: 1px solid var(--gray-a4);
+  border-radius: var(--radius-3);
+  background: var(--gray-a2);
+  padding: 10px;
+}
+
+.healer-content-column {
+  flex: 1;
+  min-width: 0;
+}
+
+.healer-topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--gray-a5);
+  background: var(--color-panel-translucent);
+  backdrop-filter: blur(10px);
+}
+
+.healer-hamburger {
+  display: none;
+}
+
+.healer-topbar-brand {
+  background: linear-gradient(135deg, var(--accent-11), var(--accent-9));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.healer-drawer {
+  width: min(320px, 86vw);
+  max-width: none;
+  height: 100vh;
+  max-height: 100vh;
+  position: fixed;
+  inset: 0 auto 0 0;
+  border-radius: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .healer-main {
-  flex: 1;
   padding: 32px 40px;
-  max-width: 960px;
+  max-width: 1080px;
+}
+
+/* Rail (desktop) vs. top bar + drawer (everything narrower than that)
+   swap at 1024px — wide enough that a persistent 264px rail still leaves
+   comfortable room for content on a small laptop, narrow enough that a
+   tablet in portrait gets the compact top-bar treatment instead of a
+   cramped rail. */
+@media (max-width: 1023px) {
+  .healer-rail {
+    display: none;
+  }
+
+  .healer-topbar {
+    display: flex;
+  }
+
+  .healer-hamburger {
+    display: inline-flex;
+  }
+
+  .healer-main {
+    padding: 20px 16px;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .healer-main {
+    padding: 16px 12px;
+  }
 }
 
 .healer-page-title {
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 1rem + 1vw, 1.6rem);
   font-weight: 700;
   margin: 0 0 8px;
+  color: var(--gray-12);
 }
 
 .healer-page-description {
-  color: var(--healer-text-muted);
+  color: var(--gray-10);
   margin: 0 0 32px;
+  max-width: 72ch;
 }
 
 .healer-card-grid {
@@ -101,23 +239,24 @@ a {
 .healer-card {
   display: block;
   padding: 16px;
-  border: 1px solid var(--healer-border);
-  border-radius: 8px;
-  background: var(--healer-surface);
+  border: 1px solid var(--gray-a5);
+  border-radius: var(--radius-4);
+  background: var(--color-panel-solid);
 }
 
 .healer-card:hover {
-  border-color: var(--healer-accent);
+  border-color: var(--accent-8);
 }
 
 .healer-card-title {
   font-weight: 600;
   margin-bottom: 6px;
+  color: var(--gray-12);
 }
 
 .healer-card-description {
   font-size: 0.85rem;
-  color: var(--healer-text-muted);
+  color: var(--gray-10);
 }
 
 .healer-badge {
@@ -128,50 +267,33 @@ a {
   text-transform: uppercase;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(79, 157, 255, 0.15);
-  color: var(--healer-accent);
+  background: var(--accent-a3);
+  color: var(--accent-11);
   margin-bottom: 16px;
 }
 
 .healer-empty-state {
-  border: 1px dashed var(--healer-border);
-  border-radius: 8px;
+  border: 1px dashed var(--gray-a6);
+  border-radius: var(--radius-4);
   padding: 24px;
-  color: var(--healer-text-muted);
+  color: var(--gray-10);
   font-size: 0.9rem;
-}
-
-.healer-sidebar-user {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--healer-border);
-}
-
-.healer-sidebar-user-email {
-  font-size: 0.85rem;
-  overflow-wrap: anywhere;
-}
-
-.healer-sidebar-user-roles {
-  font-size: 0.75rem;
-  color: var(--healer-text-muted);
-  margin-bottom: 10px;
 }
 
 .healer-logout-button {
   width: 100%;
   padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--healer-border);
+  border-radius: var(--radius-3);
+  border: 1px solid var(--gray-a5);
   background: transparent;
-  color: var(--healer-text);
+  color: var(--gray-12);
   font-size: 0.85rem;
   cursor: pointer;
 }
 
 .healer-logout-button:hover {
-  border-color: var(--healer-accent);
-  color: var(--healer-accent);
+  border-color: var(--accent-8);
+  color: var(--accent-11);
 }
 
 .healer-logout-button:disabled {
@@ -185,17 +307,31 @@ a {
   align-items: center;
   justify-content: center;
   padding: 16px;
+  background:
+    radial-gradient(circle at 20% 20%, var(--accent-a3), transparent 45%),
+    radial-gradient(circle at 80% 0%, var(--accent-a2), transparent 40%);
+}
+
+.healer-login-brand {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  background: linear-gradient(135deg, var(--accent-11), var(--accent-9));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .healer-login-card {
   width: 100%;
-  max-width: 360px;
-  border: 1px solid var(--healer-border);
-  background: var(--healer-surface);
-  border-radius: 10px;
+  max-width: 380px;
+  border: 1px solid var(--gray-a5);
+  background: var(--color-panel-solid);
+  border-radius: var(--radius-5);
   padding: 32px;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 20px 60px -20px var(--gray-a9);
 }
 
 .healer-field {
@@ -203,21 +339,24 @@ a {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: var(--healer-text-muted);
+  color: var(--gray-10);
   margin-bottom: 16px;
 }
 
-.healer-field input {
+.healer-field input,
+.healer-field select,
+.healer-field textarea {
   font-size: 0.95rem;
   padding: 9px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--healer-border);
-  background: var(--healer-bg);
-  color: var(--healer-text);
+  border-radius: var(--radius-3);
+  border: 1px solid var(--gray-a6);
+  background: var(--gray-2);
+  color: var(--gray-12);
+  font-family: inherit;
 }
 
 .healer-field input:focus-visible {
-  outline: 2px solid var(--healer-accent);
+  outline: 2px solid var(--accent-8);
   outline-offset: 1px;
 }
 
@@ -230,7 +369,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--healer-accent);
+  outline: 2px solid var(--accent-8);
   outline-offset: 2px;
 }
 
@@ -251,10 +390,10 @@ textarea:focus-visible,
   left: -9999px;
   top: 0;
   z-index: 100;
-  background: var(--healer-accent);
-  color: #06111f;
+  background: var(--accent-9);
+  color: var(--accent-contrast);
   padding: 8px 14px;
-  border-radius: 0 0 6px 0;
+  border-radius: 0 0 var(--radius-3) 0;
   font-weight: 600;
 }
 
@@ -263,28 +402,30 @@ textarea:focus-visible,
 }
 
 .healer-error {
-  color: #ff6b6b;
+  color: var(--red-11);
   font-size: 0.85rem;
   margin-bottom: 16px;
 }
 
 .healer-login-card button[type="submit"] {
   padding: 10px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-3);
   border: none;
-  background: var(--healer-accent);
-  color: #06111f;
+  background: var(--accent-9);
+  color: var(--accent-contrast);
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
+}
+
+.healer-login-card button[type="submit"]:hover:not(:disabled) {
+  background: var(--accent-10);
 }
 
 .healer-login-card button[type="submit"]:disabled {
   opacity: 0.6;
   cursor: default;
 }
-
-/* Buttons, forms, tables — servers screens (Phase 4) */
 
 button {
   font-family: inherit;
@@ -293,15 +434,19 @@ button {
 .healer-card button,
 .healer-primary-button {
   padding: 9px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--healer-border);
-  background: var(--healer-accent);
-  color: #06111f;
+  border-radius: var(--radius-3);
+  border: 1px solid var(--gray-a5);
+  background: var(--accent-9);
+  color: var(--accent-contrast);
   font-weight: 600;
   font-size: 0.9rem;
   cursor: pointer;
   display: inline-block;
   text-decoration: none;
+}
+
+.healer-card button:hover:not(:disabled) {
+  background: var(--accent-10);
 }
 
 .healer-card button:disabled {
@@ -314,10 +459,10 @@ button {
 .healer-card textarea {
   font-size: 0.95rem;
   padding: 9px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--healer-border);
-  background: var(--healer-bg);
-  color: var(--healer-text);
+  border-radius: var(--radius-3);
+  border: 1px solid var(--gray-a6);
+  background: var(--gray-2);
+  color: var(--gray-12);
   font-family: inherit;
 }
 
@@ -336,24 +481,25 @@ button {
 
 .healer-issue {
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-3);
   font-size: 0.85rem;
-  border-left: 3px solid var(--healer-border);
+  border-left: 3px solid var(--gray-a6);
+  background: var(--gray-a2);
 }
 
 .healer-issue-error {
-  border-left-color: #f85149;
-  background: rgba(248, 81, 73, 0.1);
+  border-left-color: var(--red-9);
+  background: var(--red-a3);
 }
 
 .healer-issue-warning {
-  border-left-color: #d29922;
-  background: rgba(210, 153, 34, 0.1);
+  border-left-color: var(--amber-9);
+  background: var(--amber-a3);
 }
 
 .healer-issue-info {
-  border-left-color: var(--healer-accent);
-  background: rgba(79, 157, 255, 0.08);
+  border-left-color: var(--accent-9);
+  background: var(--accent-a3);
 }
 
 .healer-issue-field {
@@ -369,36 +515,46 @@ button {
 
 .healer-table th {
   text-align: left;
-  color: var(--healer-text-muted);
+  color: var(--gray-10);
   font-weight: 500;
   font-size: 0.8rem;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--healer-border);
+  border-bottom: 1px solid var(--gray-a5);
+  white-space: nowrap;
 }
 
 .healer-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid var(--healer-border);
+  border-bottom: 1px solid var(--gray-a4);
+}
+
+.healer-table tbody tr:hover td {
+  background: var(--gray-a2);
 }
 
 .healer-table button {
   padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--healer-border);
+  border-radius: var(--radius-2);
+  border: 1px solid var(--gray-a6);
   background: transparent;
-  color: var(--healer-text);
+  color: var(--gray-12);
   font-size: 0.8rem;
   cursor: pointer;
 }
 
+.healer-table button:hover:not(:disabled) {
+  border-color: var(--accent-8);
+  color: var(--accent-11);
+}
+
 .healer-badge-ok {
-  background: rgba(63, 185, 80, 0.15);
-  color: #3fb950;
+  background: var(--green-a3);
+  color: var(--green-11);
 }
 
 .healer-badge-off {
-  background: rgba(139, 152, 165, 0.15);
-  color: var(--healer-text-muted);
+  background: var(--gray-a3);
+  color: var(--gray-10);
 }
 
 .healer-definition-list {
@@ -410,7 +566,7 @@ button {
 }
 
 .healer-definition-list dt {
-  color: var(--healer-text-muted);
+  color: var(--gray-10);
 }
 
 .healer-definition-list dd {
@@ -418,9 +574,9 @@ button {
 }
 
 .healer-code-block {
-  background: var(--healer-bg);
-  border: 1px solid var(--healer-border);
-  border-radius: 6px;
+  background: var(--gray-2);
+  border: 1px solid var(--gray-a5);
+  border-radius: var(--radius-3);
   padding: 10px 12px;
   font-size: 0.8rem;
   overflow-x: auto;
@@ -430,9 +586,10 @@ button {
 .healer-token-reveal {
   margin-top: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--healer-accent);
-  border-radius: 6px;
+  border: 1px solid var(--accent-8);
+  border-radius: var(--radius-3);
   font-size: 0.85rem;
+  background: var(--accent-a2);
 }
 
 .healer-token-reveal code {
@@ -446,8 +603,8 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--healer-border);
-  border-radius: 6px;
+  border: 1px solid var(--gray-a6);
+  border-radius: var(--radius-3);
   padding: 4px 10px;
 }
 
@@ -462,45 +619,24 @@ button {
 .healer-field-label {
   display: block;
   font-size: 0.85rem;
-  color: var(--healer-text-muted);
+  color: var(--gray-10);
   margin-bottom: 6px;
   padding: 0;
 }
 
-/* Responsive layout: below this width the sidebar becomes a horizontal top
-   bar instead of a fixed-width column, and the main content drops its
-   generous desktop padding/max-width so pages fit a phone viewport without
-   horizontal scrolling. */
-@media (max-width: 768px) {
-  .healer-shell {
-    flex-direction: column;
-    min-height: auto;
-  }
-
-  .healer-sidebar {
-    width: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--healer-border);
-    padding: 16px;
-  }
-
-  .healer-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .healer-sidebar-user {
-    margin-top: 12px;
-    padding-top: 12px;
-  }
-
-  .healer-main {
-    padding: 20px 16px;
-    max-width: 100%;
-  }
-
+/* Below this width, cards/forms give up their fixed max-widths (many
+   panels set maxWidth inline, e.g. 640px) so a phone viewport doesn't get
+   a form narrower than the screen with wasted space on the sides; the
+   grid of cards drops to one column, and any table wrapped for horizontal
+   scroll keeps its own scroll affordance rather than being force-fit. */
+@media (max-width: 640px) {
   .healer-card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .healer-card,
+  .healer-login-card {
+    max-width: 100% !important;
   }
 
   .healer-table {

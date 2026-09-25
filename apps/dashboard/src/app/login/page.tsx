@@ -59,7 +59,7 @@ function LoginForm() {
   return (
     <div className="healer-login">
       <form className="healer-login-card" onSubmit={handleSubmit}>
-        <div className="healer-brand">Healer</div>
+        <div className="healer-login-brand">Healer</div>
         <p className="healer-page-description">Sign in to manage servers and deployments.</p>
 
         <label className="healer-field">

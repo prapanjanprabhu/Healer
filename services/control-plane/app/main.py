@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
+    admin_db,
     agents,
     applications,
     audit,
@@ -79,6 +80,7 @@ app.include_router(metrics.router)
 app.include_router(logs.router)
 app.include_router(users.router)
 app.include_router(audit.router)
+app.include_router(admin_db.router)
 app.include_router(ws.router)
 
 

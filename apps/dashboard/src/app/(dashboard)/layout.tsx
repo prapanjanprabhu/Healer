@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { AppShell } from "@/components/AppShell";
 import { CurrentUserProvider } from "@/components/CurrentUserProvider";
-import { Sidebar } from "@/components/Sidebar";
 import { CONTROL_PLANE_INTERNAL_URL } from "@/lib/config";
 import type { CurrentUser } from "@/lib/types";
 
@@ -33,12 +33,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       <a className="healer-skip-link" href="#main-content">
         Skip to main content
       </a>
-      <div className="healer-shell">
-        <Sidebar user={user} />
-        <main id="main-content" className="healer-main">
-          {children}
-        </main>
-      </div>
+      <AppShell user={user}>{children}</AppShell>
     </CurrentUserProvider>
   );
 }

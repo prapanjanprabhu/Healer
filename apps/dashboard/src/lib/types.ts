@@ -222,6 +222,38 @@ export interface AuditLogEntry {
   occurred_at: string;
 }
 
+export interface DBColumnInfo {
+  name: string;
+  type: string;
+  nullable: boolean;
+  primary_key: boolean;
+  sensitive: boolean;
+}
+
+export interface DBEditableColumn {
+  name: string;
+  kind: "text" | "optional_text" | "select" | "boolean" | "json";
+  multiline: boolean;
+  choices: string[] | null;
+}
+
+export interface DBTableInfo {
+  name: string;
+  row_count: number;
+  editable: boolean;
+  deletable: boolean;
+  single_column_pk: string | null;
+  columns: DBColumnInfo[];
+  editable_columns: DBEditableColumn[];
+}
+
+export interface DBRowsResponse {
+  rows: Record<string, unknown>[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface Instance {
   id: string;
   port: number;

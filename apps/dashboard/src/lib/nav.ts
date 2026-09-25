@@ -46,6 +46,12 @@ export const NAV_ITEMS: NavItem[] = [
     permission: "manage_users",
   },
   {
+    href: "/db",
+    label: "Database",
+    description: "Browse every table; edit or delete rows on operational tables.",
+    permission: "manage_db",
+  },
+  {
     href: "/settings",
     label: "Settings",
     description: "Your account and operational settings.",
