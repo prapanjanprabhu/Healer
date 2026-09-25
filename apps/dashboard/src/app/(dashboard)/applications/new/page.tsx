@@ -240,8 +240,8 @@ export default function NewApplicationPage() {
                 placeholder={"MODE=production\nLOG_LEVEL=info"}
               />
             </label>
-            <div style={{ display: "flex", gap: 12 }}>
-              <label className="healer-field" style={{ flex: 1 }}>
+            <div className="healer-field-row">
+              <label className="healer-field">
                 CPU limit (fractional CPUs, optional)
                 <input
                   type="number"
@@ -252,7 +252,7 @@ export default function NewApplicationPage() {
                   onChange={(e) => setCpuLimit(e.target.value)}
                 />
               </label>
-              <label className="healer-field" style={{ flex: 1 }}>
+              <label className="healer-field">
                 Memory limit (MB, optional)
                 <input
                   type="number"
@@ -271,19 +271,19 @@ export default function NewApplicationPage() {
           <input required value={healthPath} onChange={(e) => setHealthPath(e.target.value)} />
         </label>
 
-        <div style={{ display: "flex", gap: 12 }}>
-          <label className="healer-field" style={{ flex: 1 }}>
+        <div className="healer-field-row">
+          <label className="healer-field">
             Port range start
             <input type="number" required value={portStart} onChange={(e) => setPortStart(Number(e.target.value))} />
           </label>
-          <label className="healer-field" style={{ flex: 1 }}>
+          <label className="healer-field">
             Port range end
             <input type="number" required value={portEnd} onChange={(e) => setPortEnd(Number(e.target.value))} />
           </label>
         </div>
 
-        <div style={{ display: "flex", gap: 12 }}>
-          <label className="healer-field" style={{ flex: 1 }}>
+        <div className="healer-field-row">
+          <label className="healer-field">
             Minimum replicas
             <input
               type="number"
@@ -293,7 +293,7 @@ export default function NewApplicationPage() {
               onChange={(e) => setMinReplicas(Number(e.target.value))}
             />
           </label>
-          <label className="healer-field" style={{ flex: 1 }}>
+          <label className="healer-field">
             Maximum replicas
             <input
               type="number"

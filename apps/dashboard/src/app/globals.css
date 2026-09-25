@@ -431,6 +431,26 @@ a {
   outline-offset: 1px;
 }
 
+/* A row of paired fields (port start/end, min/max replicas, ...) that
+   self-adapts: side by side on a wide-enough card, wrapping each field
+   onto its own line below ~340px of available width — no separate
+   mobile-breakpoint override needed, and no fixed pixel width to get
+   wrong. `min-width: 0` on the children is the actual fix for a classic
+   flexbox trap: a plain `flex: 1` child refuses to shrink below its
+   content's intrinsic width (confirmed via a real viewport overflow —
+   two number inputs previously forced this row 64px wider than a 375px
+   viewport instead of wrapping). */
+.healer-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.healer-field-row > .healer-field {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
 input:disabled,
 select:disabled,
 textarea:disabled {
@@ -1084,6 +1104,14 @@ button {
   .healer-table {
     display: block;
     overflow-x: auto;
-    white-space: nowrap;
+    /* Deliberately NOT white-space: nowrap here (an earlier version had
+       it): forcing every cell onto one line hid wrappable content off-
+       screen with no scroll cue — confirmed on the Users page, where the
+       Roles cell's three checkbox+label pairs got clipped to "Admin" with
+       Operator/Viewer scrolled out of view and no visible scrollbar.
+       Cells wrap naturally by default now; overflow-x: auto remains as a
+       fallback for any row that's still too wide (e.g. many short
+       single-token columns), which scrolls instead of forcing a wrap that
+       would look worse than the horizontal scroll. */
   }
 }
