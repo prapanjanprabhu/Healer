@@ -27,7 +27,13 @@ class OperationLockHeldError(Exception):
     """Another deploy/scale/restart is already in progress for this application."""
 
 
-def acquire(session: Session, application_id: uuid.UUID, operation: str) -> None:
+def acquire(session: Session, application_id: uuid.UUID, operation: str) -> datetime:
+    """Returns the `operation_lock_acquired_at` timestamp this call wrote —
+    a fencing token the caller must pass back to `release()` so a lock that
+    was reacquired out from under a stale holder (see STALE_LOCK_AFTER)
+    can't then be cleared by that original, still-running holder's eventual
+    `finally: release(...)`. See `release()`.
+    """
     now = datetime.now(UTC)
     stale_cutoff = now - STALE_LOCK_AFTER
     result = session.execute(
@@ -46,9 +52,38 @@ def acquire(session: Session, application_id: uuid.UUID, operation: str) -> None
         raise OperationLockHeldError(
             f"a {held_as!r} operation is already in progress for this application"
         )
+    return now
 
 
-def release(session: Session, application_id: uuid.UUID) -> None:
+def release(session: Session, application_id: uuid.UUID, acquired_at: datetime) -> None:
+    """Only clears the lock if it's still the exact one `acquire()` handed
+    back (`operation_lock_acquired_at == acquired_at`). Without this check,
+    a slow-but-legitimate operation that ran past STALE_LOCK_AFTER — during
+    which a different operation validly reacquired the lock as "abandoned"
+    — would clear that newer operation's lock out from under it in its own
+    `finally` block once it finally finishes, letting a third operation
+    start concurrently with the second. This is what actually enforces "one
+    operation at a time", not just `acquire()`'s staleness check alone.
+    """
+    session.execute(
+        update(Application)
+        .where(
+            Application.id == application_id,
+            Application.operation_lock_acquired_at == acquired_at,
+        )
+        .values(operation_lock=None, operation_lock_acquired_at=None)
+    )
+    session.commit()
+
+
+def force_release(session: Session, application_id: uuid.UUID) -> None:
+    """Unconditionally clears the lock regardless of who (if anyone) holds
+    it. For control-plane restart recovery only (reconcile_service): the
+    operation that acquired the lock is known to be gone — its process
+    doesn't exist anymore to ever call `release()` itself — rather than
+    merely slow, so there's no legitimate current holder whose lock this
+    could steal.
+    """
     session.execute(
         update(Application)
         .where(Application.id == application_id)

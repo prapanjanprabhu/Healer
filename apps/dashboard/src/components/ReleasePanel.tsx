@@ -45,6 +45,12 @@ export function ReleasePanel({ applicationId }: { applicationId: string }) {
         clearInterval(pollRef.current);
         pollRef.current = null;
         loadReleases();
+        // The just-rolled-back-to release is now active and drops out of
+        // rollbackCandidates, but the <select> would otherwise keep
+        // showing its stale id as "selected" — leaving the Roll back
+        // button enabled for a release_id that's no longer a valid
+        // candidate instead of naturally disabling via !selectedRelease.
+        setSelectedRelease("");
       }
     }, 2000);
   }

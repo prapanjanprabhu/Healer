@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -153,6 +154,85 @@ func TestCommandPastItsDeadlineTimesOut(t *testing.T) {
 	final := waitForStatus(t, events, protocol.StatusTimedOut, 2*time.Second)
 	if final.Error == nil {
 		t.Error("expected an error message on a timed-out command")
+	}
+}
+
+func TestExecutionSurvivesConnectionContextCancellation(t *testing.T) {
+	// Regression test: execute() must run against the Agent's own
+	// runCtx, not the per-connection ctx handleMessage was called with —
+	// transport.Client cancels that context the instant the WebSocket
+	// connection drops (see client.go's runOnce), which must not abort an
+	// in-flight command that has nothing to do with the connection itself.
+	d := dispatcher.New()
+	unblock := make(chan struct{})
+	d.Register(protocol.CommandInspectHost, func(ctx context.Context, _ json.RawMessage) (map[string]any, error) {
+		<-unblock
+		return map[string]any{"ok": true}, nil
+	})
+
+	agent, events := newTestAgent(t, d)
+	send := sendCapture(events)
+
+	connCtx, cancelConn := context.WithCancel(context.Background())
+	envelope := commandEnvelope(t, "cmd-survives-disconnect", protocol.CommandInspectHost, nil)
+	if err := agent.handleMessage(connCtx, envelope, send); err != nil {
+		t.Fatalf("handleMessage: %v", err)
+	}
+	waitForStatus(t, events, protocol.StatusAcknowledged, time.Second)
+	waitForStatus(t, events, protocol.StatusRunning, time.Second)
+
+	// Simulate the connection dropping mid-command.
+	cancelConn()
+	time.Sleep(20 * time.Millisecond)
+
+	// Let the handler finish — if execute() were tied to connCtx, its
+	// ctx would already be Done and the dispatcher's own ctx.Err() would
+	// have unblocked it with an error instead of this succeeding.
+	close(unblock)
+
+	final := waitForStatus(t, events, protocol.StatusSucceeded, time.Second)
+	if final.Error != nil {
+		t.Errorf("expected the command to succeed despite the connection dropping, got error: %v", *final.Error)
+	}
+}
+
+func TestRedeliveryWhileStillInFlightIsIgnored(t *testing.T) {
+	d := dispatcher.New()
+	unblock := make(chan struct{})
+	var invocations int32
+	d.Register(protocol.CommandInspectHost, func(ctx context.Context, _ json.RawMessage) (map[string]any, error) {
+		atomic.AddInt32(&invocations, 1)
+		<-unblock
+		return map[string]any{"ok": true}, nil
+	})
+
+	agent, events := newTestAgent(t, d)
+	send := sendCapture(events)
+
+	envelope := commandEnvelope(t, "cmd-inflight-dup", protocol.CommandInspectHost, nil)
+	if err := agent.handleMessage(context.Background(), envelope, send); err != nil {
+		t.Fatalf("first handleMessage: %v", err)
+	}
+	waitForStatus(t, events, protocol.StatusAcknowledged, time.Second)
+	waitForStatus(t, events, protocol.StatusRunning, time.Second)
+
+	// Redeliver while the first is still blocked mid-execution — no ack/
+	// running event should be produced for this second delivery, and the
+	// dispatcher handler must not be invoked a second time concurrently.
+	if err := agent.handleMessage(context.Background(), envelope, send); err != nil {
+		t.Fatalf("second handleMessage: %v", err)
+	}
+	select {
+	case ev := <-events:
+		t.Fatalf("expected no event for a redelivery while still in flight, got %+v", ev)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	close(unblock)
+	waitForStatus(t, events, protocol.StatusSucceeded, time.Second)
+
+	if got := atomic.LoadInt32(&invocations); got != 1 {
+		t.Errorf("expected the dispatcher handler to run exactly once, ran %d times", got)
 	}
 }
 

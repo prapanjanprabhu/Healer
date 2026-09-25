@@ -18,6 +18,15 @@ AdapterName = Literal["windows-waitress-service", "linux-docker"]
 SourceTypeName = Literal["folder", "git", "dockerfile", "image"]
 IMMUTABLE_IMAGE_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._:/-]*@sha256:[a-fA-F0-9]{64}$")
 
+# domain.hostname/cert_path/key_path flow unchanged into the Gateway
+# Manager's Jinja template (autoescape=False) and get rendered directly
+# into Nginx config text — a value containing `;`/`{`/`}`/`#`/a newline
+# could inject arbitrary Nginx directives there. The Gateway Manager
+# enforces this too (its own last line of defense), but healer.yaml is
+# where the value is first accepted, so reject it here as well.
+_HOSTNAME_RE = re.compile(r"^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$")
+_UNIX_PATH_RE = re.compile(r"^/[A-Za-z0-9_./-]+$")
+
 
 class SourceConfig(BaseModel):
     type: SourceTypeName
@@ -80,9 +89,16 @@ class PortRangeConfig(BaseModel):
 
 
 class DomainConfig(BaseModel):
-    hostname: str = Field(min_length=1, max_length=255)
-    cert_path: str | None = None
-    key_path: str | None = None
+    hostname: str = Field(min_length=1, max_length=255, pattern=_HOSTNAME_RE.pattern)
+    cert_path: str | None = Field(default=None, max_length=1000, pattern=_UNIX_PATH_RE.pattern)
+    key_path: str | None = Field(default=None, max_length=1000, pattern=_UNIX_PATH_RE.pattern)
+
+    @model_validator(mode="after")
+    def _no_traversal(self) -> "DomainConfig":
+        for value in (self.cert_path, self.key_path):
+            if value is not None and ".." in value.split("/"):
+                raise ValueError("cert_path/key_path must not contain '..' segments")
+        return self
 
 
 class ReplicaConfig(BaseModel):

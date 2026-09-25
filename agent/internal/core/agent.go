@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/healer-platform/agent/internal/dispatcher"
@@ -44,6 +45,22 @@ type Options struct {
 // Agent is the Control-Plane-facing half of the Healer Agent.
 type Agent struct {
 	opts Options
+
+	// runCtx is the Agent's own process-lifetime context — cancelled only
+	// on shutdown (Run's ctx), never by a WebSocket reconnect. Command
+	// execution (execute) is grounded in this, not in the per-connection
+	// context handleMessage receives from transport.Client: that context
+	// is cancelled the moment the connection drops (transport.Client.
+	// runOnce's `defer cancel()`), which would otherwise abort an
+	// in-flight deploy/start/stop mid-operation on a mere network blip and
+	// then journal it as StatusCompleted anyway — losing the command's
+	// real outcome (see docs/agent-protocol.md's reconnect notes). It
+	// defaults to context.Background() so handleMessage stays directly
+	// unit-testable without going through Run first (see agent_test.go).
+	runCtx context.Context
+
+	inFlightMu sync.Mutex
+	inFlight   map[string]struct{}
 }
 
 // New constructs an Agent. Options.Journal and Options.Dispatcher must be
@@ -57,12 +74,13 @@ func New(opts Options) *Agent {
 	if opts.Dispatcher == nil {
 		panic("core.New: Options.Dispatcher is required")
 	}
-	return &Agent{opts: opts}
+	return &Agent{opts: opts, runCtx: context.Background(), inFlight: make(map[string]struct{})}
 }
 
 // Run connects to the Control Plane and processes messages until ctx is
 // cancelled. See transport.Client.Run for the reconnect/shutdown contract.
 func (a *Agent) Run(ctx context.Context) error {
+	a.runCtx = ctx
 	client := &transport.Client{
 		URL:            a.opts.ControlPlaneWSURL,
 		Credential:     a.opts.Credential,
@@ -120,7 +138,29 @@ func (a *Agent) handleMessage(ctx context.Context, envelope protocol.Envelope, s
 		return nil
 	}
 
+	// Guards against a redelivery that arrives while the first delivery is
+	// still received/running (not yet journaled Completed) — e.g. the
+	// Control Plane retries before seeing an ack, independent of any
+	// reconnect. Without this, both deliveries would dispatch concurrently
+	// against the same command_id. In-memory only (not the durable
+	// journal): if the Agent itself restarts, every in-flight goroutine is
+	// gone anyway, so there's nothing to recover here.
+	a.inFlightMu.Lock()
+	if _, running := a.inFlight[cmd.CommandID]; running {
+		a.inFlightMu.Unlock()
+		if a.opts.Logger != nil {
+			a.opts.Logger.Info("ignoring already-in-flight command (duplicate delivery)",
+				"command_id", cmd.CommandID, "idempotency_key", cmd.IdempotencyKey)
+		}
+		return nil
+	}
+	a.inFlight[cmd.CommandID] = struct{}{}
+	a.inFlightMu.Unlock()
+
 	if err := a.opts.Journal.Record(cmd.CommandID, journal.StatusReceived); err != nil {
+		a.inFlightMu.Lock()
+		delete(a.inFlight, cmd.CommandID)
+		a.inFlightMu.Unlock()
 		return fmt.Errorf("journal record received: %w", err)
 	}
 	if err := send(protocol.TypeAgentCommandEvent, protocol.CommandEvent{
@@ -128,17 +168,28 @@ func (a *Agent) handleMessage(ctx context.Context, envelope protocol.Envelope, s
 		Status:     protocol.StatusAcknowledged,
 		OccurredAt: time.Now().UTC(),
 	}); err != nil {
+		a.inFlightMu.Lock()
+		delete(a.inFlight, cmd.CommandID)
+		a.inFlightMu.Unlock()
 		return fmt.Errorf("send acknowledged event: %w", err)
 	}
 
-	// Executed off the read loop so one slow/long-running command never
-	// blocks heartbeats or other commands from being received.
-	go a.execute(ctx, cmd, send)
+	// Executed against the Agent's own long-lived context, not the
+	// per-connection ctx handleMessage was called with — see runCtx's
+	// doc comment. Off the read loop so one slow/long-running command
+	// never blocks heartbeats or other commands from being received.
+	go a.execute(a.runCtx, cmd, send)
 	return nil
 }
 
 func (a *Agent) execute(ctx context.Context, cmd protocol.CommandEnvelope, send transport.SendFunc) {
 	logger := a.opts.Logger
+
+	defer func() {
+		a.inFlightMu.Lock()
+		delete(a.inFlight, cmd.CommandID)
+		a.inFlightMu.Unlock()
+	}()
 
 	_ = a.opts.Journal.Record(cmd.CommandID, journal.StatusRunning)
 	_ = send(protocol.TypeAgentCommandEvent, protocol.CommandEvent{

@@ -9,7 +9,7 @@ payload shape, secret-to-env injection, and image_ref bookkeeping.
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -175,7 +175,7 @@ def test_run_deployment_sets_image_ref_and_starts_a_container(db_session, monkey
 
     monkeypatch.setattr(deployment_service.command_service, "submit_command_and_wait", fake_submit)
 
-    asyncio.run(deployment_service.run_deployment(db_session, deployment.id))
+    asyncio.run(deployment_service.run_deployment(db_session, deployment.id, datetime.now(UTC)))
 
     release = db_session.get(Release, deployment.release_id)
     db_session.refresh(application)

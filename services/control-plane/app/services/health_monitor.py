@@ -140,7 +140,7 @@ async def _heal(
     session: Session, application: Application, instance: Instance, health_check: HealthCheck
 ) -> None:
     try:
-        lock_service.acquire(session, application.id, "heal")
+        lock_token = lock_service.acquire(session, application.id, "heal")
     except OperationLockHeldError:
         return  # a deploy/scale is in progress — retry healing on a later tick
     try:
@@ -148,4 +148,4 @@ async def _heal(
             session, application, instance, health_check
         )
     finally:
-        lock_service.release(session, application.id)
+        lock_service.release(session, application.id, lock_token)

@@ -317,7 +317,7 @@ def _build_stop_instance_payload(instance: Instance, config: HealerYamlV1) -> di
     return {"adapter": config.adapter, "service_name": instance.service_name}
 
 
-async def run_deployment(session: Session, deployment_id: uuid.UUID) -> None:
+async def run_deployment(session: Session, deployment_id: uuid.UUID, lock_token: datetime) -> None:
     """The actual deploy pipeline: deploy_release then start_instance on the
     target Agent, persisting every step. Runs as a FastAPI BackgroundTask
     against the triggering request's own session — see `start_deployment`.
@@ -419,7 +419,7 @@ async def run_deployment(session: Session, deployment_id: uuid.UUID) -> None:
             transition_deployment(session, deployment, DeploymentStatus.FAILED)
             session.commit()
     finally:
-        lock_service.release(session, deployment.application_id)
+        lock_service.release(session, deployment.application_id, lock_token)
 
 
 async def _sync_gateway_step(

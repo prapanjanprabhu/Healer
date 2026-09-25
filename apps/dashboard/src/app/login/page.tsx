@@ -46,7 +46,12 @@ function LoginForm() {
       return;
     }
 
-    const next = searchParams.get("next") ?? "/";
+    // Only ever redirect same-origin: `next` comes from a query param an
+    // attacker could craft into a shared link (middleware.ts always sets a
+    // safe one itself, but nothing stops a hand-crafted
+    // `/login?next=https://evil.example` from being shared).
+    const rawNext = searchParams.get("next");
+    const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
     router.push(next);
     router.refresh();
   }

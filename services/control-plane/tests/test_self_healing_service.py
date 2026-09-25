@@ -201,7 +201,11 @@ def test_restart_command_failure_creates_a_healthy_replacement(db_session, monke
         .filter(Instance.application_id == application.id, Instance.id != instance.id)
         .one()
     )
-    assert replacement.port != original_port
+    # The failed original's port is free to reuse once it's terminal (see
+    # migration 0011 / Instance.__table_args__'s partial unique index) — a
+    # replacement legitimately landing on the *same* port as the instance it
+    # replaces is expected, not a collision.
+    assert replacement.port == original_port
     assert replacement.status == InstanceStatus.RUNNING
     assert replacement.healing_attempts == instance.healing_attempts == 1
 

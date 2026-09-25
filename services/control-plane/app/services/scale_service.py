@@ -344,7 +344,7 @@ async def _scale_down(
     return overall_ok
 
 
-async def run_scale(session: Session, deployment_id: uuid.UUID) -> None:
+async def run_scale(session: Session, deployment_id: uuid.UUID, lock_token: datetime) -> None:
     """The actual scale pipeline. Runs as a FastAPI BackgroundTask against
     the triggering request's own session — see `start_scale`. Always
     releases the application's operation lock on the way out, whatever the
@@ -425,7 +425,7 @@ async def run_scale(session: Session, deployment_id: uuid.UUID) -> None:
         )
         session.commit()
     finally:
-        lock_service.release(session, deployment.application_id)
+        lock_service.release(session, deployment.application_id, lock_token)
 
 
 def list_instances(session: Session, application_id: uuid.UUID) -> list[InstanceView]:

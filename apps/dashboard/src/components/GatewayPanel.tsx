@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { useHasPermission } from "@/components/CurrentUserProvider";
 import type { GatewaySyncResponse } from "@/lib/types";
 
 export function GatewayPanel({
@@ -11,6 +12,7 @@ export function GatewayPanel({
   applicationId: string;
   hostname: string;
 }) {
+  const canSync = useHasPermission("deploy");
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<GatewaySyncResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,9 +40,13 @@ export function GatewayPanel({
         application&apos;s currently healthy instance. Runs automatically after each
         successful deploy — use this to re-sync without deploying again.
       </p>
-      <button onClick={sync} disabled={syncing}>
-        {syncing ? "Syncing…" : "Sync gateway"}
-      </button>
+      {canSync ? (
+        <button onClick={sync} disabled={syncing}>
+          {syncing ? "Syncing…" : "Sync gateway"}
+        </button>
+      ) : (
+        <p className="healer-card-description">Syncing requires the Operator or Administrator role.</p>
+      )}
 
       {error && (
         <div className="healer-error" style={{ marginTop: 12 }}>

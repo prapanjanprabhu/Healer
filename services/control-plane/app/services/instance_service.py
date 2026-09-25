@@ -47,7 +47,7 @@ async def restart_instance(
         raise InstanceActionError("this instance has no known release to restart")
 
     try:
-        lock_service.acquire(session, application.id, "restart")
+        lock_token = lock_service.acquire(session, application.id, "restart")
     except OperationLockHeldError as exc:
         raise InstanceActionError(str(exc)) from exc
 
@@ -87,7 +87,7 @@ async def restart_instance(
         session.commit()
         raise InstanceActionError(instance.failure_reason)
     finally:
-        lock_service.release(session, application.id)
+        lock_service.release(session, application.id, lock_token)
 
 
 async def stop_instance(session: Session, application: Application, instance: Instance) -> Instance:
@@ -100,7 +100,7 @@ async def stop_instance(session: Session, application: Application, instance: In
         raise InstanceActionError("the instance's Agent is not currently connected")
 
     try:
-        lock_service.acquire(session, application.id, "stop")
+        lock_token = lock_service.acquire(session, application.id, "stop")
     except OperationLockHeldError as exc:
         raise InstanceActionError(str(exc)) from exc
 
@@ -133,4 +133,4 @@ async def stop_instance(session: Session, application: Application, instance: In
             raise InstanceActionError(instance.failure_reason)
         return instance
     finally:
-        lock_service.release(session, application.id)
+        lock_service.release(session, application.id, lock_token)

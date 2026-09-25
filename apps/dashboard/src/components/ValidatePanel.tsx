@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { useHasPermission } from "@/components/CurrentUserProvider";
 import type { SecretKey, ValidationResponse } from "@/lib/types";
 
 export function ValidatePanel({
@@ -13,6 +14,7 @@ export function ValidatePanel({
   secretNames: string[];
   initialSecrets: SecretKey[];
 }) {
+  const canManageSecrets = useHasPermission("deploy");
   const [validating, setValidating] = useState(false);
   const [result, setResult] = useState<ValidationResponse | null>(null);
   const [secrets, setSecrets] = useState(initialSecrets);
@@ -94,7 +96,7 @@ export function ValidatePanel({
                   <span className="healer-issue-field">{name}</span>
                   {knownKeys.has(name) ? "set" : "not set"}
                 </span>
-                {knownKeys.has(name) && (
+                {knownKeys.has(name) && canManageSecrets && (
                   <button type="button" onClick={() => deleteSecret(name)} style={{ flexShrink: 0 }}>
                     Delete
                   </button>
@@ -103,30 +105,36 @@ export function ValidatePanel({
             ))}
           </ul>
 
-          <form onSubmit={saveSecret}>
-            <label className="healer-field">
-              Key
-              <select value={secretKey} onChange={(e) => setSecretKey(e.target.value)}>
-                {secretNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="healer-field">
-              Value
-              <input
-                type="password"
-                value={secretValue}
-                onChange={(e) => setSecretValue(e.target.value)}
-                autoComplete="off"
-              />
-            </label>
-            <button type="submit" disabled={savingSecret || !secretValue}>
-              {savingSecret ? "Saving…" : "Set secret"}
-            </button>
-          </form>
+          {canManageSecrets ? (
+            <form onSubmit={saveSecret}>
+              <label className="healer-field">
+                Key
+                <select value={secretKey} onChange={(e) => setSecretKey(e.target.value)}>
+                  {secretNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="healer-field">
+                Value
+                <input
+                  type="password"
+                  value={secretValue}
+                  onChange={(e) => setSecretValue(e.target.value)}
+                  autoComplete="off"
+                />
+              </label>
+              <button type="submit" disabled={savingSecret || !secretValue}>
+                {savingSecret ? "Saving…" : "Set secret"}
+              </button>
+            </form>
+          ) : (
+            <p className="healer-card-description">
+              Managing secrets requires the Operator or Administrator role.
+            </p>
+          )}
         </div>
       )}
     </div>

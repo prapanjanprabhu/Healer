@@ -204,7 +204,7 @@ async def deploy_application(
         ) from exc
 
     try:
-        lock_service.acquire(db, application.id, "deploy")
+        lock_token = lock_service.acquire(db, application.id, "deploy")
     except OperationLockHeldError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
@@ -213,7 +213,7 @@ async def deploy_application(
             db, application, config, actor_id=current_user.id
         )
     except DeploymentSetupError as exc:
-        lock_service.release(db, application.id)
+        lock_service.release(db, application.id, lock_token)
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     instance = db.scalars(
@@ -229,7 +229,7 @@ async def deploy_application(
         detail={"deployment_id": str(deployment.id), "port": instance.port},
     )
 
-    background_tasks.add_task(deployment_service.run_deployment, db, deployment.id)
+    background_tasks.add_task(deployment_service.run_deployment, db, deployment.id, lock_token)
 
     return DeployTriggerResponse(
         deployment_id=deployment.id,
@@ -285,7 +285,7 @@ async def scale_application(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
 
     try:
-        lock_service.acquire(db, application.id, "scale")
+        lock_token = lock_service.acquire(db, application.id, "scale")
     except OperationLockHeldError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
@@ -294,7 +294,7 @@ async def scale_application(
             db, application, payload.desired_replicas, actor_id=current_user.id
         )
     except ScaleSetupError as exc:
-        lock_service.release(db, application.id)
+        lock_service.release(db, application.id, lock_token)
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     audit_service.record(
@@ -306,7 +306,7 @@ async def scale_application(
         detail={"deployment_id": str(deployment.id), "desired_replicas": payload.desired_replicas},
     )
 
-    background_tasks.add_task(scale_service.run_scale, db, deployment.id)
+    background_tasks.add_task(scale_service.run_scale, db, deployment.id, lock_token)
 
     return ScaleTriggerResponse(
         deployment_id=deployment.id, desired_replicas=payload.desired_replicas
@@ -346,7 +346,7 @@ async def deploy_new_release(
         ) from exc
 
     try:
-        lock_service.acquire(db, application.id, "deploy")
+        lock_token = lock_service.acquire(db, application.id, "deploy")
     except OperationLockHeldError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
@@ -355,7 +355,7 @@ async def deploy_new_release(
             db, application, config, actor_id=current_user.id
         )
     except ReleaseSetupError as exc:
-        lock_service.release(db, application.id)
+        lock_service.release(db, application.id, lock_token)
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     audit_service.record(
@@ -367,7 +367,7 @@ async def deploy_new_release(
         detail={"deployment_id": str(deployment.id), "release_id": str(deployment.release_id)},
     )
 
-    background_tasks.add_task(release_service.run_release_switch, db, deployment.id)
+    background_tasks.add_task(release_service.run_release_switch, db, deployment.id, lock_token)
 
     return ReleaseTriggerResponse(deployment_id=deployment.id, warnings=[MIGRATION_WARNING])
 
@@ -394,7 +394,7 @@ async def rollback_application(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="application not found")
 
     try:
-        lock_service.acquire(db, application.id, "deploy")
+        lock_token = lock_service.acquire(db, application.id, "deploy")
     except OperationLockHeldError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
@@ -403,7 +403,7 @@ async def rollback_application(
             db, application, payload.release_id, actor_id=current_user.id
         )
     except ReleaseSetupError as exc:
-        lock_service.release(db, application.id)
+        lock_service.release(db, application.id, lock_token)
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
     audit_service.record(
@@ -415,7 +415,7 @@ async def rollback_application(
         detail={"deployment_id": str(deployment.id), "release_id": str(payload.release_id)},
     )
 
-    background_tasks.add_task(release_service.run_release_switch, db, deployment.id)
+    background_tasks.add_task(release_service.run_release_switch, db, deployment.id, lock_token)
 
     return ReleaseTriggerResponse(deployment_id=deployment.id, warnings=[])
 

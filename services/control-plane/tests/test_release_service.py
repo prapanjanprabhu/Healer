@@ -12,6 +12,7 @@ and retention pruning.
 
 import asyncio
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from app.db.models.application import Instance, Source
 from app.db.models.enums import (
@@ -204,7 +205,7 @@ def test_successful_blue_green_switch_starts_new_instances_and_drains_old(db_ses
     deployment = release_service.start_new_release(db_session, application, config, actor_id=None)
     assert deployment.kind == "blue_green"
 
-    asyncio.run(release_service.run_release_switch(db_session, deployment.id))
+    asyncio.run(release_service.run_release_switch(db_session, deployment.id, datetime.now(UTC)))
 
     db_session.refresh(deployment)
     assert deployment.status.value == "succeeded"
@@ -240,7 +241,7 @@ def test_failed_health_check_never_touches_the_old_release(db_session, monkeypat
 
     config = application_service.config_from_application(application)
     deployment = release_service.start_new_release(db_session, application, config, actor_id=None)
-    asyncio.run(release_service.run_release_switch(db_session, deployment.id))
+    asyncio.run(release_service.run_release_switch(db_session, deployment.id, datetime.now(UTC)))
 
     db_session.refresh(deployment)
     assert deployment.status.value == "failed"
@@ -276,7 +277,7 @@ def test_failed_gateway_validation_reverts_the_switch_and_preserves_old_traffic(
 
     config = application_service.config_from_application(application)
     deployment = release_service.start_new_release(db_session, application, config, actor_id=None)
-    asyncio.run(release_service.run_release_switch(db_session, deployment.id))
+    asyncio.run(release_service.run_release_switch(db_session, deployment.id, datetime.now(UTC)))
 
     db_session.refresh(deployment)
     assert deployment.status.value == "failed"
@@ -311,7 +312,7 @@ def test_rollback_reuses_the_existing_release_without_rebuilding(db_session, mon
 
     config = application_service.config_from_application(application)
     deployment = release_service.start_new_release(db_session, application, config, actor_id=None)
-    asyncio.run(release_service.run_release_switch(db_session, deployment.id))
+    asyncio.run(release_service.run_release_switch(db_session, deployment.id, datetime.now(UTC)))
     db_session.refresh(application)
     release_b_id = application.active_release_id
     assert release_b_id != release_a.id
@@ -322,7 +323,7 @@ def test_rollback_reuses_the_existing_release_without_rebuilding(db_session, mon
         db_session, application, release_a.id, actor_id=None
     )
     assert rollback_deployment.kind == "rollback"
-    asyncio.run(release_service.run_release_switch(db_session, rollback_deployment.id))
+    asyncio.run(release_service.run_release_switch(db_session, rollback_deployment.id, datetime.now(UTC)))
 
     assert sent["deploy_release"] == 0  # rollback never rebuilds
 
@@ -377,7 +378,7 @@ def test_retention_prunes_old_releases_beyond_the_configured_count(db_session, m
         new_release = db_session.get(Release, deployment.release_id)
         new_release.created_at = release_1.created_at + timedelta(minutes=i + 1)
         db_session.commit()
-        asyncio.run(release_service.run_release_switch(db_session, deployment.id))
+        asyncio.run(release_service.run_release_switch(db_session, deployment.id, datetime.now(UTC)))
 
     remaining = (
         db_session.query(Release)

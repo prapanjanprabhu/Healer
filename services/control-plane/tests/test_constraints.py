@@ -32,6 +32,38 @@ def test_same_port_on_different_servers_is_allowed(db_session):
     db_session.flush()  # should not raise
 
 
+def test_a_terminal_instances_port_can_be_reused(db_session):
+    """Instance rows are never deleted (kept for dashboard history), so an
+    unconditional (server_id, port) uniqueness constraint would let a
+    stopped/failed instance permanently squat on its port forever — every
+    blue-green deploy, scale-up and self-healing replacement would then
+    leak one port from the configured range for good. The partial unique
+    index (migration 0011) scopes uniqueness to non-terminal statuses so a
+    dead instance's port becomes reusable, without weakening the collision
+    check against a currently-live instance on the same port.
+    """
+    server = make_server(db_session)
+    application = make_application(db_session)
+    dead = Instance(
+        application_id=application.id,
+        server_id=server.id,
+        port=9034,
+        status=InstanceStatus.STOPPED,
+    )
+    db_session.add(dead)
+    db_session.flush()
+
+    # A new instance can take the now-free port...
+    db_session.add(Instance(application_id=application.id, server_id=server.id, port=9034))
+    db_session.flush()  # should not raise
+
+    # ...but a second *live* instance still can't collide with it.
+    with pytest.raises(IntegrityError):
+        with db_session.begin_nested():
+            db_session.add(Instance(application_id=application.id, server_id=server.id, port=9034))
+            db_session.flush()
+
+
 def test_duplicate_domain_hostname_is_rejected(db_session):
     application = make_application(db_session)
     db_session.add(Domain(application_id=application.id, hostname="erp.ritrjpm.edu.in"))

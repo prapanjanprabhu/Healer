@@ -15,6 +15,7 @@ template.
 import os
 import re
 import subprocess
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +42,17 @@ _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
 class InvalidAppSlug(ValueError):
     pass
+
+
+# FastAPI runs sync routes (like /reload) in a threadpool, so two concurrent
+# requests for two different apps genuinely run apply() concurrently in
+# separate threads. Without this, `nginx -s reload` re-reads the *whole*
+# managed directory, so app A's validated-and-about-to-reload config could
+# pick up app B's just-written, not-yet-validated file — or the reverse:
+# app A's successful validate+reload could be invalidated by app B's write
+# landing in between. Serializing the whole validate-then-reload sequence
+# makes each apply() atomic with respect to the others.
+_apply_lock = threading.Lock()
 
 
 @dataclass
@@ -113,30 +125,31 @@ def apply(app_slug: str, domains: list[dict], upstreams: list[dict]) -> ReloadOu
     application's bad config can never replace another application's (or
     its own last) working configuration.
     """
-    path = _managed_path(app_slug)
-    existed_before = path.exists()
-    previous_content = path.read_text() if existed_before else None
+    with _apply_lock:
+        path = _managed_path(app_slug)
+        existed_before = path.exists()
+        previous_content = path.read_text() if existed_before else None
 
-    new_content = render(app_slug, domains, upstreams)
-    _write_or_remove(path, new_content)
+        new_content = render(app_slug, domains, upstreams)
+        _write_or_remove(path, new_content)
 
-    ok, detail = validate()
-    if not ok:
-        _write_or_remove(path, previous_content if existed_before else None)
-        return ReloadOutcome(
-            ok=False,
-            message=f"nginx -t rejected the new configuration, restored the previous one: {detail}",
-        )
+        ok, detail = validate()
+        if not ok:
+            _write_or_remove(path, previous_content if existed_before else None)
+            return ReloadOutcome(
+                ok=False,
+                message=f"nginx -t rejected the new configuration, restored the previous one: {detail}",
+            )
 
-    reload_ok, reload_detail = reload_nginx()
-    if not reload_ok:
-        _write_or_remove(path, previous_content if existed_before else None)
-        validate()  # best-effort: keep the on-disk config in sync with what's actually loaded
-        return ReloadOutcome(
-            ok=False,
-            message=f"nginx -s reload failed, restored the previous configuration: {reload_detail}",
-        )
+        reload_ok, reload_detail = reload_nginx()
+        if not reload_ok:
+            _write_or_remove(path, previous_content if existed_before else None)
+            validate()  # best-effort: keep the on-disk config in sync with what's actually loaded
+            return ReloadOutcome(
+                ok=False,
+                message=f"nginx -s reload failed, restored the previous configuration: {reload_detail}",
+            )
 
-    if new_content is None:
-        return ReloadOutcome(ok=True, message="no active domain/healthy upstream — routing removed")
-    return ReloadOutcome(ok=True, message="activated and reloaded")
+        if new_content is None:
+            return ReloadOutcome(ok=True, message="no active domain/healthy upstream — routing removed")
+        return ReloadOutcome(ok=True, message="activated and reloaded")

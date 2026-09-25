@@ -66,7 +66,11 @@ def reconcile_stuck_deployments(session: Session) -> int:
             )
         )
         transition_deployment(session, deployment, DeploymentStatus.FAILED)
-        lock_service.release(session, deployment.application_id)
+        # force_release, not release: this recovery path never acquired the
+        # lock itself (it has no fencing token) — it's clearing a lock left
+        # by a process that no longer exists after a Control Plane restart,
+        # not releasing one it's currently holding.
+        lock_service.force_release(session, deployment.application_id)
         logger.warning(
             "reconciled stuck deployment %s (application %s) after restart",
             deployment.id,

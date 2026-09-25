@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -120,7 +120,31 @@ class Release(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class Instance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "instances"
     __table_args__ = (
-        UniqueConstraint("server_id", "port", name="uq_instances_server_id_port"),
+        # Partial, not a plain UniqueConstraint: Instance rows are never
+        # deleted (they're kept for the dashboard's instance history — see
+        # list_instances in app/services/scale_service.py), so an
+        # unconditional (server_id, port) uniqueness constraint would let
+        # every terminal (stopped/failed) instance permanently squat on its
+        # port forever. Every blue-green deploy, scale-up and self-healing
+        # replacement allocates a fresh port and never gives the old one
+        # back, so a typical small port range exhausts after roughly a
+        # dozen such operations even though the OS port is actually free.
+        # Scoping uniqueness to non-terminal statuses lets a dead instance's
+        # port be reused by `_allocate_instance` (deployment_service.py),
+        # which still relies on this same index's IntegrityError to detect
+        # a genuine collision with a currently-live instance.
+        Index(
+            "uq_instances_server_id_port_live",
+            "server_id",
+            "port",
+            unique=True,
+            # The Postgres enum's stored labels are the Python enum members'
+            # *names* (SQLAlchemy's Enum default), i.e. uppercase 'STOPPED'/
+            # 'FAILED' — not InstanceStatus.STOPPED.value ("stopped").
+            postgresql_where=text(
+                "status NOT IN ('STOPPED'::instance_status, 'FAILED'::instance_status)"
+            ),
+        ),
         Index("ix_instances_application_id_status", "application_id", "status"),
         Index("ix_instances_server_id_status", "server_id", "status"),
     )

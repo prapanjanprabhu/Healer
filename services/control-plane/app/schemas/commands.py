@@ -16,6 +16,26 @@ class CommandSubmitRequest(BaseModel):
     ttl_seconds: int = Field(default=120, ge=5, le=3600)
 
 
+def _redact(value):
+    """Masks the *values* of any "env" dict found anywhere in a command
+    payload/result, keeping the keys visible. `_build_start_instance_payload`
+    (app/services/deployment_service.py) injects decrypted application
+    secrets into `payload["linux"]["env"]` so the Agent can set them as
+    container environment variables — necessary for the Agent, but this is
+    the API response boundary (CommandOut), the same one `SecretKeyOut`
+    already enforces as write-only elsewhere, so the real values must never
+    round-trip back out through GET/POST /agents/{id}/commands.
+    """
+    if isinstance(value, dict):
+        return {
+            k: ({inner_k: "[REDACTED]" for inner_k in v} if k == "env" and isinstance(v, dict) else _redact(v))
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact(v) for v in value]
+    return value
+
+
 class CommandOut(BaseModel):
     id: uuid.UUID
     agent_id: uuid.UUID
@@ -35,8 +55,8 @@ class CommandOut(BaseModel):
             agent_id=command.agent_id,
             type=command.command_type,
             status=command.status.value,
-            payload=command.payload,
-            result=command.result,
+            payload=_redact(command.payload),
+            result=_redact(command.result),
             error=command.error,
             correlation_id=command.correlation_id,
             created_at=command.created_at,

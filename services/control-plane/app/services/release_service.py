@@ -430,7 +430,7 @@ async def _fail(
     session.commit()
 
 
-async def run_release_switch(session: Session, deployment_id: uuid.UUID) -> None:
+async def run_release_switch(session: Session, deployment_id: uuid.UUID, lock_token: datetime) -> None:
     """The blue-green/rollback pipeline. Runs as a FastAPI BackgroundTask —
     see `start_new_release`/`start_rollback`. Always releases the
     application's operation lock on the way out, whatever the outcome.
@@ -523,4 +523,4 @@ async def run_release_switch(session: Session, deployment_id: uuid.UUID) -> None
         transition_deployment(session, deployment, DeploymentStatus.SUCCEEDED)
         session.commit()
     finally:
-        lock_service.release(session, deployment.application_id)
+        lock_service.release(session, deployment.application_id, lock_token)
