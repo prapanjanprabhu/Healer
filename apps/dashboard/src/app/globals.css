@@ -38,17 +38,24 @@ body {
     sans-serif;
 }
 
-/* The Theme provider's own root element — stretch it to the viewport so
-   percentage/100vh heights inside the shell resolve correctly. Also where
-   a handful of older components' inline styles read `--healer-*` custom
-   properties (LogViewer, DeploymentTimeline, Sparkline, the Overview
-   page) — those were never actually defined before this rewrite either,
-   so they always silently used their hardcoded fallback hex values;
-   defined here against the same Radix scale as everything else so they
-   pick up the real theme instead. */
-.radix-themes {
+/* Only the OUTERMOST Theme instance (app/layout.tsx), never a bare
+   `.radix-themes` selector: Radix Themes components that portal content
+   (Tooltip, Dialog, DropdownMenu, ...) wrap that content in their own
+   nested `<Theme asChild>` to re-establish theme context outside the DOM
+   tree — which merges the same `radix-themes` class onto the portaled
+   content element itself. A bare `.radix-themes` rule here previously
+   applied `min-height: 100vh` to every nav-link tooltip's content too,
+   stretching each one into a full-viewport-height box. Radix marks the
+   true root with `data-is-root-theme="true"` specifically so callers can
+   avoid this trap. Custom properties still cascade fine to nested Theme
+   instances (they're normal CSS inheritance), so scoping this to the root
+   loses nothing. */
+.radix-themes[data-is-root-theme="true"] {
   min-height: 100vh;
-  --healer-error: var(--red-11);
+  /* tomato, not red: the accent color is red (see layout.tsx), and error
+     states need a hue a reader can tell apart from "primary action" at a
+     glance — tomato reads as "still red/danger" without being identical. */
+  --healer-error: var(--tomato-11);
   --healer-warning: var(--amber-11);
   --healer-muted: var(--gray-10);
   --healer-code-bg: var(--gray-2);
@@ -402,7 +409,7 @@ textarea:focus-visible,
 }
 
 .healer-error {
-  color: var(--red-11);
+  color: var(--tomato-11);
   font-size: 0.85rem;
   margin-bottom: 16px;
 }
@@ -488,8 +495,8 @@ button {
 }
 
 .healer-issue-error {
-  border-left-color: var(--red-9);
-  background: var(--red-a3);
+  border-left-color: var(--tomato-9);
+  background: var(--tomato-a3);
 }
 
 .healer-issue-warning {
@@ -498,8 +505,11 @@ button {
 }
 
 .healer-issue-info {
-  border-left-color: var(--accent-9);
-  background: var(--accent-a3);
+  /* Deliberately blue, not the (now red) accent color — an informational
+     line shouldn't read as "danger" next to error/warning rows that use
+     the same red family. */
+  border-left-color: var(--blue-9);
+  background: var(--blue-a3);
 }
 
 .healer-issue-field {

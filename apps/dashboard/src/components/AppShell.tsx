@@ -66,7 +66,7 @@ function UserCard({ user }: { user: CurrentUser }) {
   return (
     <Box className="healer-user-card">
       <Flex align="center" gap="2" mb="2">
-        <Avatar size="2" radius="full" fallback={initial} color="iris" variant="solid" />
+        <Avatar size="2" radius="full" fallback={initial} variant="solid" />
         <Box style={{ minWidth: 0, flex: 1 }}>
           <Text
             as="div"
@@ -78,7 +78,7 @@ function UserCard({ user }: { user: CurrentUser }) {
           </Text>
           <Flex gap="1" wrap="wrap" mt="1">
             {user.roles.map((role) => (
-              <Badge key={role} color="iris" variant="soft" size="1">
+              <Badge key={role} variant="soft" size="1">
                 {role}
               </Badge>
             ))}
