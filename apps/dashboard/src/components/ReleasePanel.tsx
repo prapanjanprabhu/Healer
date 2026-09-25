@@ -2,14 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { useHasPermission } from "@/components/CurrentUserProvider";
 import { DeploymentTimeline } from "@/components/DeploymentTimeline";
 import type { DeploymentDetail, Release } from "@/lib/types";
 
 const TERMINAL_STATUSES = new Set(["succeeded", "failed", "rolled_back"]);
+type Confirming = "deploy" | "rollback" | null;
 
 export function ReleasePanel({ applicationId }: { applicationId: string }) {
+  const canDeploy = useHasPermission("deploy");
+  const canRollback = useHasPermission("rollback");
   const [releases, setReleases] = useState<Release[]>([]);
   const [selectedRelease, setSelectedRelease] = useState("");
+  const [confirming, setConfirming] = useState<Confirming>(null);
   const [busy, setBusy] = useState(false);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [detail, setDetail] = useState<DeploymentDetail | null>(null);
@@ -46,6 +51,7 @@ export function ReleasePanel({ applicationId }: { applicationId: string }) {
 
   async function deployNewRelease() {
     setBusy(true);
+    setConfirming(null);
     setError(null);
     setWarnings([]);
     const response = await apiFetch(`/applications/${applicationId}/releases`, { method: "POST" });
@@ -63,6 +69,7 @@ export function ReleasePanel({ applicationId }: { applicationId: string }) {
   async function rollback() {
     if (!selectedRelease) return;
     setBusy(true);
+    setConfirming(null);
     setError(null);
     setWarnings([]);
     const response = await apiFetch(`/applications/${applicationId}/rollback`, {
@@ -91,27 +98,72 @@ export function ReleasePanel({ applicationId }: { applicationId: string }) {
         healthy. See docs/blue-green-deployment.md.
       </p>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button onClick={deployNewRelease} disabled={busy || inProgress}>
-          {busy ? "Starting…" : "Deploy new release"}
-        </button>
-        <select
-          value={selectedRelease}
-          onChange={(e) => setSelectedRelease(e.target.value)}
-          disabled={rollbackCandidates.length === 0}
-        >
-          <option value="">
-            {rollbackCandidates.length === 0 ? "No previous release available" : "Roll back to…"}
-          </option>
-          {rollbackCandidates.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.ref} ({new Date(r.created_at).toLocaleString()})
-            </option>
-          ))}
-        </select>
-        <button onClick={rollback} disabled={busy || inProgress || !selectedRelease}>
-          Roll back
-        </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        {canDeploy && (
+          <>
+            {confirming !== "deploy" ? (
+              <button onClick={() => setConfirming("deploy")} disabled={busy || inProgress}>
+                Deploy new release
+              </button>
+            ) : (
+              <>
+                <span className="healer-card-description">Start a new release switch?</span>
+                <button onClick={deployNewRelease} disabled={busy}>
+                  {busy ? "Starting…" : "Confirm"}
+                </button>
+                <button type="button" onClick={() => setConfirming(null)} disabled={busy}>
+                  Cancel
+                </button>
+              </>
+            )}
+          </>
+        )}
+
+        {canRollback && (
+          <>
+            <select
+              value={selectedRelease}
+              onChange={(e) => {
+                setSelectedRelease(e.target.value);
+                setConfirming(null);
+              }}
+              disabled={rollbackCandidates.length === 0 || confirming === "rollback"}
+            >
+              <option value="">
+                {rollbackCandidates.length === 0 ? "No previous release available" : "Roll back to…"}
+              </option>
+              {rollbackCandidates.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.ref} ({new Date(r.created_at).toLocaleString()})
+                </option>
+              ))}
+            </select>
+            {confirming !== "rollback" ? (
+              <button
+                onClick={() => setConfirming("rollback")}
+                disabled={busy || inProgress || !selectedRelease}
+              >
+                Roll back
+              </button>
+            ) : (
+              <>
+                <span className="healer-card-description">Roll back to the selected release?</span>
+                <button onClick={rollback} disabled={busy}>
+                  {busy ? "Starting…" : "Confirm"}
+                </button>
+                <button type="button" onClick={() => setConfirming(null)} disabled={busy}>
+                  Cancel
+                </button>
+              </>
+            )}
+          </>
+        )}
+
+        {!canDeploy && !canRollback && (
+          <p className="healer-card-description">
+            Deploying and rolling back require the Operator or Administrator role.
+          </p>
+        )}
       </div>
 
       {error && (

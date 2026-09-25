@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 import pytest
 
 from app.db.models.application import Instance
-from app.db.models.enums import AgentStatus, InstanceStatus
+from app.db.models.enums import AdapterType, AgentStatus, InstanceStatus
 from app.services import log_service, secret_service
 from tests.factories import make_agent, make_application, make_release, make_server
 
@@ -50,7 +50,7 @@ def _setup(
 ):
     server = make_server(session)
     make_agent(session, server=server, status=agent_status)
-    application = make_application(session, server_id=server.id)
+    application = make_application(session, server_id=server.id, adapter_type=AdapterType.WINDOWS_WAITRESS_SERVICE)
     release = release_dir and make_release(
         session, application=application, release_dir=release_dir
     )
@@ -146,3 +146,23 @@ def test_fetch_instance_log_passes_clamped_limits_to_the_agent(db_session, monke
     assert captured["max_bytes"] == log_service.DEFAULT_MAX_BYTES
     assert captured["max_lines"] == log_service.DEFAULT_MAX_LINES
     assert captured["stream"] == "stderr"
+
+
+def test_linux_container_logs_use_adapter_without_a_release_directory(db_session, monkeypatch):
+    application, instance = _setup(db_session)
+    application.adapter_type = AdapterType.LINUX_DOCKER
+    release = db_session.get(log_service.Release, instance.release_id)
+    release.release_dir = None
+    release.image_ref = "example@sha256:" + "a" * 64
+    captured = {}
+
+    async def fake_submit(session, agent, command_type, payload, idempotency_key, **kwargs):
+        captured.update(payload)
+        return _succeeded({"lines": ["secret=test-secret-value"], "size": 24, "end_offset": 24})
+
+    secret_service.set_secret(db_session, application.id, "TOKEN", "test-secret-value")
+    monkeypatch.setattr(log_service.command_service, "submit_command_and_wait", fake_submit)
+    chunk = asyncio.run(log_service.fetch_instance_log(db_session, instance, "stdout"))
+    assert captured["adapter"] == "linux-docker"
+    assert "log_dir" not in captured
+    assert "test-secret-value" not in chunk["lines"][0]

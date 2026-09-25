@@ -42,6 +42,11 @@ or pulled (immutable reference, used as-is) image this release runs from.
 `start_rollback` checks it instead of `release_dir`/`venv_python` when the
 application's adapter is `linux-docker`.
 
+**Image references are immutable.** An `image` source must use
+`repository@sha256:<64 hex digits>`; mutable tags are rejected by both the
+Control Plane schema and the Agent. Docker pulls the digest without adding a
+`latest` tag.
+
 **Secrets become environment variables.** The Windows adapter never
 injected secrets into the process directly (Django reads them from its own
 settings module). A container's normal configuration surface *is* its
@@ -78,16 +83,22 @@ removes the container, tolerating "already gone" as success.
 hosts (`docker_available`/`docker_version`) — net-new; nothing reported this
 before.
 
+**Retention cleanup** uses a constrained `deploy_release` operation for
+Dockerfile-built `healer-<slug>:<version>` tags only. The Agent reconstructs
+the tag from validated slug and version fields, and Docker refuses removal
+while a container still uses the image. Failed cleanup leaves the release
+record in place for a later retry. Pulled digest references are shared
+cache entries and are left on the host.
+
 ## Known simplifications
 
 - No per-application network isolation — every container joins one shared
   `healer-apps` bridge network. See `docs/security-boundaries.md` §6a.
-- Container stdout/stderr is available for start-failure diagnostics
-  (`dockerengine.ContainerLogs`, a bounded recent tail) but is not wired
-  into Phase 12's log-source registry/live-tail dashboard feature — that
-  feature is file-tail-based (built for the Windows adapter's log files);
-  extending it to Docker's own JSON log driver is a reasonable follow-up,
-  not required by this phase's completion test.
+- Container stdout/stderr is available through the log-source registry and
+  live-tail API. The Agent asks Docker for one stream at a time and caps the
+  response to 1 MiB / 5000 lines. Its offset tracks a bounded recent
+  snapshot; very high-volume output that rolls past that window between
+  polls can be missed.
 - No live (mid-write) resource-limit adjustment — `cpu_limit`/
   `memory_limit_mb` are applied at container creation only, same as the
   Windows adapter has no live resource controls either.

@@ -2,11 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { useHasPermission } from "@/components/CurrentUserProvider";
 import type { DeploymentDetail } from "@/lib/types";
 
 const TERMINAL_STATUSES = new Set(["succeeded", "failed", "rolled_back"]);
 
 export function DeployPanel({ applicationId }: { applicationId: string }) {
+  const canDeploy = useHasPermission("deploy");
+  const [confirming, setConfirming] = useState(false);
   const [triggering, setTriggering] = useState(false);
   const [deploymentId, setDeploymentId] = useState<string | null>(null);
   const [detail, setDetail] = useState<DeploymentDetail | null>(null);
@@ -35,6 +38,7 @@ export function DeployPanel({ applicationId }: { applicationId: string }) {
 
   async function deploy() {
     setTriggering(true);
+    setConfirming(false);
     setError(null);
     const response = await apiFetch(`/applications/${applicationId}/deploy`, { method: "POST" });
     setTriggering(false);
@@ -55,9 +59,26 @@ export function DeployPanel({ applicationId }: { applicationId: string }) {
         Snapshots a release, installs requirements, runs migrations and collectstatic, then starts
         one Waitress instance on an automatically allocated port.
       </p>
-      <button onClick={deploy} disabled={triggering || (detail !== null && detail.status === "in_progress")}>
-        {triggering ? "Starting…" : "Deploy"}
-      </button>
+      {!canDeploy ? (
+        <p className="healer-card-description">Deploying requires the Operator or Administrator role.</p>
+      ) : !confirming ? (
+        <button
+          onClick={() => setConfirming(true)}
+          disabled={triggering || (detail !== null && detail.status === "in_progress")}
+        >
+          Deploy
+        </button>
+      ) : (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span className="healer-card-description">Start a new deployment?</span>
+          <button onClick={deploy} disabled={triggering}>
+            {triggering ? "Starting…" : "Confirm"}
+          </button>
+          <button type="button" onClick={() => setConfirming(false)} disabled={triggering}>
+            Cancel
+          </button>
+        </div>
+      )}
 
       {error && <div className="healer-error" style={{ marginTop: 12 }}>{error}</div>}
 

@@ -193,7 +193,10 @@ func (c *Client) BuildImage(ctx context.Context, contextDir, dockerfileRelPath, 
 // PullImage pulls an immutable image reference (repo[:tag][@digest]).
 func (c *Client) PullImage(ctx context.Context, ref string) error {
 	name, tag := splitImageRef(ref)
-	query := "?fromImage=" + urlQueryEscape(name) + "&tag=" + urlQueryEscape(tag)
+	query := "?fromImage=" + urlQueryEscape(name)
+	if tag != "" {
+		query += "&tag=" + urlQueryEscape(tag)
+	}
 	resp, err := c.do(ctx, http.MethodPost, "/images/create"+query, nil, "")
 	if err != nil {
 		return err
@@ -203,6 +206,20 @@ func (c *Client) PullImage(ctx context.Context, ref string) error {
 		return readErrorBody(resp)
 	}
 	return drainBuildStream(resp.Body)
+}
+
+// RemoveImage removes one named release tag. Docker rejects removal while
+// any container still references it; force removal is deliberately absent.
+func (c *Client) RemoveImage(ctx context.Context, ref string) error {
+	resp, err := c.do(ctx, http.MethodDelete, "/images/"+urlPathEscape(ref), nil, "")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if isSuccess(resp.StatusCode) || resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	return readErrorBody(resp)
 }
 
 // drainBuildStream reads a build/pull response — a stream of newline-
@@ -404,7 +421,35 @@ func (c *Client) ContainerLogs(ctx context.Context, nameOrID string, tail int) (
 	if !isSuccess(resp.StatusCode) {
 		return "", readErrorBody(resp)
 	}
-	return demuxDockerLogStream(resp.Body), nil
+	return demuxDockerLogStream(io.LimitReader(resp.Body, 1<<20)), nil
+}
+
+// ContainerStreamLogs reads one stream from Docker's bounded recent-log
+// endpoint. The byte cap also protects against a single enormous log line.
+func (c *Client) ContainerStreamLogs(ctx context.Context, nameOrID, stream string, tail int) (string, error) {
+	if stream != "stdout" && stream != "stderr" {
+		return "", fmt.Errorf("invalid container log stream %q", stream)
+	}
+	if tail < 1 || tail > 5000 {
+		return "", fmt.Errorf("invalid container log tail %d", tail)
+	}
+	path := fmt.Sprintf("/containers/%s/logs?%s=1&tail=%d", urlPathEscape(nameOrID), stream, tail)
+	resp, err := c.do(ctx, http.MethodGet, path, nil, "")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if !isSuccess(resp.StatusCode) {
+		return "", readErrorBody(resp)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+	if err != nil {
+		return "", fmt.Errorf("read container logs: %w", err)
+	}
+	if len(data) > 1<<20 {
+		return "", fmt.Errorf("container log response exceeds the 1 MiB limit")
+	}
+	return demuxDockerLogStream(bytes.NewReader(data)), nil
 }
 
 // demuxDockerLogStream strips Docker's 8-byte frame headers
@@ -485,6 +530,9 @@ func tarDirectory(dir string, excludeDirs map[string]bool) ([]byte, error) {
 // careful to split on the LAST colon after the last slash, so a registry
 // port ("host:5000/name:tag") isn't mistaken for the tag separator.
 func splitImageRef(ref string) (name, tag string) {
+	if strings.Contains(ref, "@sha256:") {
+		return ref, ""
+	}
 	lastSlash := strings.LastIndex(ref, "/")
 	searchFrom := 0
 	if lastSlash >= 0 {

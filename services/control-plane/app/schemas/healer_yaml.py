@@ -6,6 +6,7 @@ capabilities (`agent/cmd/healer-agent/main.go:adaptersForOS`) — one naming
 scheme throughout the system rather than a separate one just for this file.
 """
 
+import re
 import uuid
 from typing import Literal
 
@@ -15,6 +16,7 @@ HEALER_YAML_VERSION = 1
 
 AdapterName = Literal["windows-waitress-service", "linux-docker"]
 SourceTypeName = Literal["folder", "git", "dockerfile", "image"]
+IMMUTABLE_IMAGE_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._:/-]*@sha256:[a-fA-F0-9]{64}$")
 
 
 class SourceConfig(BaseModel):
@@ -143,4 +145,6 @@ class HealerYamlV1(BaseModel):
                 )
             if self.source.type == "image" and self.source.ref:
                 raise ValueError("source.ref is not meaningful when source.type is 'image'")
+            if self.source.type == "image" and not IMMUTABLE_IMAGE_RE.fullmatch(self.source.location):
+                raise ValueError("source.location must be an immutable image reference with a sha256 digest")
         return self

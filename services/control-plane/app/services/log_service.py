@@ -23,8 +23,8 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models.application import Instance, Release
-from app.db.models.enums import AgentCommandType, AgentStatus
+from app.db.models.application import Application, Instance, Release
+from app.db.models.enums import AdapterType, AgentCommandType, AgentStatus
 from app.db.session import SessionLocal
 from app.repositories.agent_repository import AgentRepository
 from app.services import command_service, log_redaction, secret_service
@@ -111,8 +111,9 @@ async def _collect(
     if instance.release_id is None:
         raise LogUnavailableError("this instance has no known release yet")
     release = session.get(Release, instance.release_id)
-    if release is None or not release.release_dir:
-        raise LogUnavailableError("this instance's release directory is not known yet")
+    application = session.get(Application, instance.application_id)
+    if application is None or release is None:
+        raise LogUnavailableError("this instance's release is not known yet")
     if not instance.service_name:
         raise LogUnavailableError("this instance has no service name")
 
@@ -122,12 +123,17 @@ async def _collect(
 
     payload = {
         "service_name": instance.service_name,
-        "log_dir": _shared_log_dir(release.release_dir),
         "stream": stream,
         "max_bytes": max_bytes,
         "max_lines": max_lines,
         "offset": offset,
     }
+    if application.adapter_type == AdapterType.LINUX_DOCKER:
+        payload["adapter"] = "linux-docker"
+    else:
+        if not release.release_dir:
+            raise LogUnavailableError("this instance's release directory is not known yet")
+        payload["log_dir"] = _shared_log_dir(release.release_dir)
     command = await command_service.submit_command_and_wait(
         session,
         agent,

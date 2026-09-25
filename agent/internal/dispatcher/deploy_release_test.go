@@ -277,6 +277,9 @@ func TestAcquireDeployLockIsExclusive(t *testing.T) {
 // manage.py rather than a real Django project, so no network install is
 // needed to prove the pipeline's plumbing.
 func TestHandleDeployReleaseRealPipeline(t *testing.T) {
+	// The Agent runs under ProgramData in production; tests need a writable
+	// equivalent because ordinary CI users cannot create C:\ProgramData\Healer.
+	t.Setenv("ProgramData", t.TempDir())
 	if runtime.GOOS != "windows" {
 		t.Skip("the windows-waitress-service adapter's venv layout (.venv/Scripts) only exists on Windows")
 	}

@@ -14,20 +14,18 @@ development).
 - **Agent binaries**: versioned and checksummed. `make release-agent`
   cross-compiles `healer-agent-windows-amd64.exe` and
   `healer-agent-linux-amd64` with the real version injected, and writes a
-  `.sha256` file next to each — genuinely built and verified while writing
-  this doc (see the checksum output in `docs/dashboard.md`'s sibling
-  commit, or just re-run `make release-agent` yourself). Real code signing
+  `.sha256` file next to each. Verify the manifests against the built
+  binaries before distribution. Real code signing
   (Windows Authenticode, a GPG-signed release) needs a certificate/private
   key this project doesn't have; the checksum is what an operator
   downloading a release verifies against instead — documented as the
   honest V1 scope, not silently skipped.
 - **Control Plane / dashboard / worker / Gateway Manager**: built from
-  source via Docker Compose (`deploy/docker-compose.yml`), not published
-  as pre-built version-tagged images in V1. "Versioned release" for these
-  four means: tag the *source* (a git tag matching `VERSION`), and
-  `docker compose build` produces that version's images locally. A
-  registry-published, pre-built image per version is a reasonable next
-  step but wasn't required for V1 and isn't pretended to exist here.
+  the matching source tag with `deploy/docker-compose.release.yml`. Compose
+  tags each local image `healer-<service>:<HEALER_VERSION>`, keeps code out of
+  runtime bind mounts, and runs the Control Plane without hot reload and the
+  dashboard as a production Next.js build. Images are not published to a
+  registry in V1; a clean server builds them from this source checkout.
 - **Postgres/Redis**: already pinned (`postgres:16-alpine`,
   `redis:7-alpine`) — unrelated to Healer's own version.
 

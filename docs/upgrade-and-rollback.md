@@ -18,15 +18,14 @@ through it.
    backfill) by the same expand/migrate/contract discipline
    `docs/blue-green-deployment.md` documents for application deploys, so a
    plain `alembic upgrade head` is expected to be safe, but always check.
-3. **Control Plane / dashboard / Gateway Manager / worker**: these are
-   built from source via Docker Compose
-   (`deploy/docker-compose.yml` — no pre-built version-tagged images exist
-   for these four in V1, see `docs/release.md`). Pull the new source,
-   then:
+3. **Control Plane / dashboard / Gateway Manager / worker**: on an installed
+   server, check out the new source tag, set `HEALER_VERSION` to match it,
+   and use `deploy/docker-compose.release.yml`. Build its locally tagged
+   images, run migrations, then recreate the services:
    ```
-   make migrate     # alembic upgrade head
-   make build       # docker compose build
-   make restart     # docker compose down && up -d
+   docker compose -f deploy/docker-compose.release.yml --env-file .env build
+   docker compose -f deploy/docker-compose.release.yml --env-file .env run --rm control-plane alembic upgrade head
+   docker compose -f deploy/docker-compose.release.yml --env-file .env up -d
    ```
    The Control Plane's own startup reconciliation
    (`app/services/reconcile_service.py`) fails-safe any deployment that
@@ -50,15 +49,12 @@ through it.
 ## Rolling back a Healer upgrade
 
 There is no single `make rollback` for the platform itself (unlike an
-application's blue-green rollback, which V1 automates) — because
-Control-Plane upgrades are source-rebuilds, not swappable images, a
-platform rollback is: check out the previous version's source, `make
-migrate` (if the new version's migration needs `alembic downgrade` first —
-check whether it's actually reversible; V1's additive-only migrations
-generally are, via `alembic downgrade -1`), rebuild, restart. If a
-migration already ran and can't be cleanly reversed, restore the pre-
-upgrade backup instead (`docs/backup-and-restore.md`) rather than fight a
-downgrade — restoring is the safer, always-available fallback.
+application's blue-green rollback, which V1 automates). Check out the
+previous source tag, set `HEALER_VERSION` to match, and run the release
+Compose file against its retained local images. Check migrations first:
+if the newer schema is incompatible, downgrade deliberately. If a migration
+cannot be reversed cleanly, restore the pre-upgrade backup
+(`docs/backup-and-restore.md`).
 
 ## What never needs a "rollback" step
 

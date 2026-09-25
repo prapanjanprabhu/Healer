@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/healer-platform/agent/internal/dockerengine"
 )
 
 // defaultLogMaxBytes/defaultLogMaxLines are used when the Control Plane
@@ -21,6 +23,7 @@ const (
 )
 
 type collectLogsPayload struct {
+	Adapter     string `json:"adapter"`
 	ServiceName string `json:"service_name"`
 	LogDir      string `json:"log_dir"`
 	Stream      string `json:"stream"`
@@ -36,13 +39,16 @@ type collectLogsPayload struct {
 // poll for "what's new" without re-reading what it already has. A missing
 // log file (the instance has never written to this stream yet) is reported
 // as not_found rather than an error.
-func HandleCollectLogs(_ context.Context, raw json.RawMessage) (map[string]any, error) {
+func HandleCollectLogs(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	var payload collectLogsPayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, fmt.Errorf("invalid collect_logs payload: %w", err)
 	}
 	if err := validateCollectLogsPayload(payload); err != nil {
 		return nil, err
+	}
+	if payload.Adapter == "linux-docker" {
+		return collectContainerLogs(ctx, payload)
 	}
 
 	maxBytes := payload.MaxBytes
@@ -152,17 +158,70 @@ func HandleCollectLogs(_ context.Context, raw json.RawMessage) (map[string]any, 
 }
 
 func validateCollectLogsPayload(payload collectLogsPayload) error {
+	if payload.Adapter != "" && payload.Adapter != "windows-waitress-service" && payload.Adapter != "linux-docker" {
+		return fmt.Errorf("invalid collect_logs payload: unsupported adapter %q", payload.Adapter)
+	}
 	if strings.TrimSpace(payload.ServiceName) == "" {
 		return fmt.Errorf("invalid collect_logs payload: service_name must not be empty")
 	}
 	if strings.ContainsAny(payload.ServiceName, `/\`) || strings.Contains(payload.ServiceName, "..") {
 		return fmt.Errorf("invalid collect_logs payload: service_name must not contain path separators")
 	}
-	if strings.TrimSpace(payload.LogDir) == "" {
+	if payload.Adapter != "linux-docker" && strings.TrimSpace(payload.LogDir) == "" {
 		return fmt.Errorf("invalid collect_logs payload: log_dir must not be empty")
 	}
 	if payload.Stream != "stdout" && payload.Stream != "stderr" {
 		return fmt.Errorf("invalid collect_logs payload: stream must be \"stdout\" or \"stderr\"")
 	}
 	return nil
+}
+
+func collectContainerLogs(ctx context.Context, payload collectLogsPayload) (map[string]any, error) {
+	maxBytes := payload.MaxBytes
+	if maxBytes <= 0 || maxBytes > hardLogMaxBytes {
+		maxBytes = defaultLogMaxBytes
+	}
+	maxLines := payload.MaxLines
+	if maxLines <= 0 || maxLines > hardLogMaxLines {
+		maxLines = defaultLogMaxLines
+	}
+	logs, err := dockerengine.New().ContainerStreamLogs(ctx, payload.ServiceName, payload.Stream, hardLogMaxLines)
+	if err != nil {
+		return nil, fmt.Errorf("read container logs: %w", err)
+	}
+	size := int64(len(logs))
+	start := size - maxBytes
+	if payload.Offset != nil && *payload.Offset <= size {
+		start = *payload.Offset
+	}
+	if start < 0 {
+		start = 0
+	}
+	chunk := logs[start:]
+	if len(chunk) > int(maxBytes) {
+		chunk = chunk[:maxBytes]
+	}
+	end := start + int64(len(chunk))
+	if payload.Offset == nil && start > 0 {
+		if i := strings.IndexByte(chunk, '\n'); i >= 0 {
+			chunk = chunk[i+1:]
+		} else {
+			chunk = ""
+		}
+	}
+	lines := []string{}
+	if chunk != "" {
+		for _, line := range strings.Split(strings.TrimRight(chunk, "\n"), "\n") {
+			lines = append(lines, strings.TrimSuffix(line, "\r"))
+		}
+	}
+	truncated := start > 0 || end < size
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+		truncated = true
+	}
+	return map[string]any{
+		"ok": true, "not_found": false, "lines": lines,
+		"size": size, "end_offset": end, "truncated": truncated,
+	}, nil
 }

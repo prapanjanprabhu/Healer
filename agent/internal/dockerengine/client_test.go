@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -287,6 +288,14 @@ func TestSplitImageRefHandlesARegistryPortWithoutMistakingItForTheTagSeparator(t
 func TestSplitImageRefDefaultsToLatestWhenNoTagGiven(t *testing.T) {
 	name, tag := splitImageRef("nginx")
 	if name != "nginx" || tag != "latest" {
+		t.Errorf("got name=%q tag=%q", name, tag)
+	}
+}
+
+func TestSplitImageRefKeepsDigestWithoutAddingLatest(t *testing.T) {
+	ref := "registry.example:5000/app@sha256:" + strings.Repeat("a", 64)
+	name, tag := splitImageRef(ref)
+	if name != ref || tag != "" {
 		t.Errorf("got name=%q tag=%q", name, tag)
 	}
 }

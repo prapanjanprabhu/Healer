@@ -50,6 +50,8 @@ Metrics and logs are Healer's own, small, V1-scoped features.
   never force a full-file read). Supports an `offset` for forward
   continuation (used by the live tail) or `None` for "tail the end".
   Exposed as `GET /applications/{id}/instances/{instance_id}/logs`.
+  Linux Docker instances use the same command and API; the Agent reads a
+  bounded stdout or stderr slice through the Docker Engine API.
 - **Live tail**: `GET /applications/{id}/instances/{instance_id}/logs/stream`
   — Server-Sent Events. Polls `collect_logs` every ~2s over the existing
   secure Agent WebSocket channel, forwarding only newly-appended,

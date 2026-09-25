@@ -49,6 +49,13 @@ between the live `healer` database and the restored copy and matched
 exactly — `servers: 3`, `applications: 1`, `users: 3`, `audit_logs: 194`,
 byte-for-byte identical UUIDs and emails.
 
+That comparison is now also automated — `make backup-restore-test`
+(`scripts/backup_restore_rehearsal.sh`) runs `make backup`, restores into a
+scratch database, asserts every table's row count matches between the live
+and restored databases, then drops the scratch database and deletes the
+dump it made. Run it against any live `make up` stack; it exits non-zero on
+any mismatch, so it's safe to wire into a periodic check.
+
 To actually recover a lost/corrupted database (not a rehearsal):
 
 1. Stop anything writing to it: `docker compose stop control-plane worker`.

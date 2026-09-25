@@ -78,8 +78,10 @@ connections to finish, then stopped.
 `Application.release_retention_count` (default 5) bounds how many past
 `READY` releases are kept — after each successful switch, older ones beyond
 that count are pruned (the currently active release is never pruned,
-regardless of count). Pruning is database bookkeeping only in V1 — see
-"Known simplifications" below.
+regardless of count). For Linux Dockerfile releases, the Agent first removes
+the unused `healer-<slug>:<version>` image tag without force. A failed
+removal keeps the release record for a later retry. Pulled digest images
+remain cached because another application may use the same digest.
 
 ## Database migrations: expand/migrate/contract
 
@@ -111,10 +113,9 @@ release. Healer cannot detect this for you; follow the practice above.
 
 ## Known simplifications (V1)
 
-- Release retention prunes database rows only — the old release's
-  `release_dir`/venv on disk are not deleted. Real disk cleanup would need a
-  new Agent capability (deleting an arbitrary path), which deserves its own
-  focused safety design rather than being folded into this phase.
+- Windows release retention prunes database rows only — the old release's
+  `release_dir`/venv on disk are not deleted. Filesystem cleanup needs a
+  separate, narrowly scoped Agent operation.
 - The migration warning is a fixed, always-shown advisory, not an automated
   safety analysis of the actual migration — see above.
 - A replacement/rollback still uses the same fixed `DEFAULT_DRAIN_TIMEOUT_SECONDS`

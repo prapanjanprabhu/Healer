@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +23,12 @@ type deploySource struct {
 	Location string  `json:"location"`
 	Ref      *string `json:"ref"`
 }
+
+var immutableImageRef = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:/-]*@sha256:[a-fA-F0-9]{64}$`)
+var cleanupSlug = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+var cleanupVersion = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
+func validImmutableImageRef(ref string) bool { return immutableImageRef.MatchString(ref) }
 
 type deployWindows struct {
 	PythonExecutable string   `json:"python_executable"`
@@ -43,6 +50,7 @@ type deployLinux struct {
 }
 
 type deployReleasePayload struct {
+	Operation      string         `json:"operation,omitempty"`
 	Adapter        string         `json:"adapter"`
 	AppSlug        string         `json:"app_slug"`
 	ReleaseVersion string         `json:"release_version"`
@@ -92,6 +100,9 @@ func HandleDeployRelease(ctx context.Context, raw json.RawMessage) (map[string]a
 	}
 	if err := validateDeployPayload(payload); err != nil {
 		return nil, err
+	}
+	if payload.Operation == "cleanup_image" {
+		return cleanupLinuxImage(ctx, payload)
 	}
 
 	if payload.Adapter == "linux-docker" {
@@ -217,6 +228,18 @@ func validateDeployPayload(payload deployReleasePayload) error {
 	if err := validPathSegment("release_version", payload.ReleaseVersion); err != nil {
 		return err
 	}
+	if payload.Operation != "" && payload.Operation != "cleanup_image" {
+		return fmt.Errorf("invalid deploy_release payload: unsupported operation %q", payload.Operation)
+	}
+	if payload.Operation == "cleanup_image" {
+		if payload.Adapter != "linux-docker" || payload.Source.Type != "" || payload.Source.Location != "" {
+			return errors.New("invalid cleanup_image payload: only a Linux release tag can be removed")
+		}
+		if !cleanupSlug.MatchString(payload.AppSlug) || !cleanupVersion.MatchString(payload.ReleaseVersion) {
+			return errors.New("invalid cleanup_image payload: unsafe release tag")
+		}
+		return nil
+	}
 
 	if payload.Adapter == "linux-docker" {
 		switch payload.Source.Type {
@@ -226,6 +249,9 @@ func validateDeployPayload(payload deployReleasePayload) error {
 		}
 		if strings.TrimSpace(payload.Source.Location) == "" {
 			return errors.New("invalid deploy_release payload: source.location must not be empty")
+		}
+		if payload.Source.Type == "image" && !validImmutableImageRef(payload.Source.Location) {
+			return errors.New("invalid deploy_release payload: image source must include a sha256 digest")
 		}
 		if payload.Linux == nil {
 			return errors.New("invalid deploy_release payload: missing linux config")
@@ -257,6 +283,18 @@ func validateDeployPayload(payload deployReleasePayload) error {
 		}
 	}
 	return nil
+}
+
+func cleanupLinuxImage(ctx context.Context, payload deployReleasePayload) (map[string]any, error) {
+	tag := fmt.Sprintf("healer-%s:%s", payload.AppSlug, payload.ReleaseVersion)
+	runner := &stepRunner{}
+	runner.run("image_remove", func() (string, error) {
+		if err := dockerengine.New().RemoveImage(ctx, tag); err != nil {
+			return "", err
+		}
+		return "removed unused Healer release image " + tag, nil
+	})
+	return map[string]any{"ok": runner.ok(), "steps": runner.steps}, nil
 }
 
 // deployLinuxRelease builds (from a Dockerfile) or pulls (an immutable

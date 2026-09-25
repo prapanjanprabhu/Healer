@@ -2,12 +2,45 @@ package dispatcher
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestCollectDockerLogsReadsOneStreamWithOffset(t *testing.T) {
+	startFakeDockerDaemon(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("stdout") != "1" || r.URL.Query().Get("stderr") != "" {
+			t.Errorf("unexpected log stream query: %s", r.URL.RawQuery)
+		}
+		data := []byte("first\nsecond\n")
+		header := make([]byte, 8)
+		header[0] = 1
+		binary.BigEndian.PutUint32(header[4:], uint32(len(data)))
+		w.Write(header)
+		w.Write(data)
+	})
+	payload := collectLogsPayload{Adapter: "linux-docker", ServiceName: "healer-test-9100", Stream: "stdout"}
+	first, err := HandleCollectLogs(context.Background(), mustMarshal(t, payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := first["lines"].([]string); len(got) != 2 || got[1] != "second" {
+		t.Fatalf("unexpected lines: %v", got)
+	}
+	offset := first["end_offset"].(int64)
+	payload.Offset = &offset
+	second, err := HandleCollectLogs(context.Background(), mustMarshal(t, payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second["lines"].([]string)) != 0 {
+		t.Fatalf("expected no duplicate lines: %v", second["lines"])
+	}
+}
 
 func mustMarshal(t *testing.T, v any) json.RawMessage {
 	t.Helper()

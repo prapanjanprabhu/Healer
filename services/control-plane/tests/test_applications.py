@@ -121,7 +121,7 @@ def test_parse_yaml_endpoint_accepts_a_valid_config(client, db_session):
     login_as(client, db_session, role="Viewer")
     yaml_text = (
         "version: 1\nname: x\nadapter: linux-docker\n"
-        "source:\n  type: image\n  location: myrepo/x:latest\n"
+        "source:\n  type: image\n  location: myrepo/x@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
         "linux:\n  internal_port: 8000\n"
         "health:\n  path: /healthz\n"
         "ports:\n  start: 9100\n  end: 9101\n"

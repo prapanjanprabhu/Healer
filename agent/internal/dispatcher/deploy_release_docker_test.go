@@ -11,6 +11,39 @@ import (
 	"testing"
 )
 
+const testImmutableImage = "nginx@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+func TestValidateDeployPayloadRejectsMutableImage(t *testing.T) {
+	payload := deployReleasePayload{
+		Adapter: "linux-docker", AppSlug: "app", ReleaseVersion: "1",
+		Source: deploySource{Type: "image", Location: "nginx:latest"},
+		Linux:  &deployLinux{InternalPort: 8000},
+	}
+	if err := validateDeployPayload(payload); err == nil {
+		t.Fatal("expected mutable image reference to be rejected")
+	}
+}
+
+func TestCleanupLinuxImageOnlyRemovesItsOwnReleaseTag(t *testing.T) {
+	startFakeDockerDaemon(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || r.URL.Path != "/images/healer-safe-app:v1" {
+			t.Errorf("unexpected Docker request: %s %s", r.Method, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	payload := deployReleasePayload{
+		Operation: "cleanup_image", Adapter: "linux-docker", AppSlug: "safe-app", ReleaseVersion: "v1",
+	}
+	result, err := HandleDeployRelease(context.Background(), mustMarshal(t, payload))
+	if err != nil || result["ok"] != true {
+		t.Fatalf("cleanup failed: result=%v err=%v", result, err)
+	}
+	payload.ReleaseVersion = "../../other"
+	if _, err := HandleDeployRelease(context.Background(), mustMarshal(t, payload)); err == nil {
+		t.Fatal("expected unsafe cleanup tag to be rejected")
+	}
+}
+
 // startFakeDockerDaemon runs a minimal fake Docker Engine API on a Unix
 // socket and points HEALER_DOCKER_SOCKET at it for the duration of the
 // test, so deployLinuxRelease's dockerengine.New() calls reach it instead
@@ -58,7 +91,7 @@ func TestDeployLinuxReleasePullsAnImmutableImageReference(t *testing.T) {
 
 	payload := deployReleasePayload{
 		Adapter: "linux-docker", AppSlug: "phase13-erp", ReleaseVersion: "20260101000000",
-		Source: deploySource{Type: "image", Location: "nginx:1.25"},
+		Source: deploySource{Type: "image", Location: testImmutableImage},
 		Linux:  &deployLinux{InternalPort: 8000},
 	}
 	raw, _ := json.Marshal(payload)
@@ -70,7 +103,7 @@ func TestDeployLinuxReleasePullsAnImmutableImageReference(t *testing.T) {
 	if result["ok"] != true {
 		t.Fatalf("expected ok true, got %v", result)
 	}
-	if result["image_ref"] != "nginx:1.25" {
+	if result["image_ref"] != testImmutableImage {
 		t.Errorf("expected image_ref to be the pulled reference, got %v", result["image_ref"])
 	}
 }
@@ -107,7 +140,7 @@ func TestDeployLinuxReleaseFailsCleanlyWhenDockerIsUnreachable(t *testing.T) {
 
 	payload := deployReleasePayload{
 		Adapter: "linux-docker", AppSlug: "phase13-erp", ReleaseVersion: "20260101000002",
-		Source: deploySource{Type: "image", Location: "nginx:1.25"},
+		Source: deploySource{Type: "image", Location: testImmutableImage},
 		Linux:  &deployLinux{InternalPort: 8000},
 	}
 	raw, _ := json.Marshal(payload)
@@ -134,7 +167,7 @@ func TestDeployLinuxReleaseFailsCleanlyWhenDockerIsUnreachable(t *testing.T) {
 func TestValidateDeployPayloadRejectsMissingLinuxConfig(t *testing.T) {
 	payload := deployReleasePayload{
 		Adapter: "linux-docker", AppSlug: "app", ReleaseVersion: "1",
-		Source: deploySource{Type: "image", Location: "nginx:1.25"},
+		Source: deploySource{Type: "image", Location: testImmutableImage},
 	}
 	if err := validateDeployPayload(payload); err == nil {
 		t.Fatal("expected an error when linux config is missing")

@@ -86,7 +86,7 @@ domain:
 | `version` | Always `1` for this schema. A breaking change to this format gets a `version: 2` and a new schema class, the same versioning rule as `protocols/`. |
 | `adapter` | `windows-waitress-service` or `linux-docker` — the same vocabulary as `AdapterType` and the Agent's own reported capabilities. |
 | `server_id` | The registered server this application targets. Must actually run an Agent whose reported capabilities include this adapter. |
-| `source` | Where the code (or image) comes from. `folder`/`git` for Windows; `dockerfile`/`image` for Linux. |
+| `source` | Where the code (or image) comes from. `folder`/`git` for Windows; `dockerfile`/`image` for Linux. Image sources require `repository@sha256:<64 hex digits>`. |
 | `windows` / `linux` | Adapter-specific fields — exactly one is present, matching `adapter`. |
 | `health` | HTTP health check path + timing thresholds. |
 | `ports` | The port range Healer may allocate instances into on `server_id` (allocation itself is Phase 9). |

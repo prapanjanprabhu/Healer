@@ -11,7 +11,7 @@ ENV_FILE := .env
 	lint lint-dashboard lint-python lint-agent \
 	test test-control-plane test-worker test-agent test-all \
 	up down restart logs ps build build-agent agent-version migrate \
-	backup restore release-agent
+	backup restore backup-restore-test release-agent load-test
 
 help:
 	@echo "Healer V1 — common tasks"
@@ -26,6 +26,10 @@ help:
 	@echo "  make agent-version    Print the compiled agent's version"
 	@echo "  make migrate          Run control-plane database migrations"
 	@echo "  make bootstrap-admin  Create the first Administrator account"
+	@echo "  make backup           Back up the database to backups/<timestamp>.dump"
+	@echo "  make restore FILE=... Restore a dump into a new scratch database"
+	@echo "  make backup-restore-test  Automated backup/restore rehearsal (asserts row counts match)"
+	@echo "  make load-test        Run the ERP peak-load test against a running stack"
 
 ## --- setup ---------------------------------------------------------------
 
@@ -172,3 +176,16 @@ restore:
 		rm -f /tmp/healer_restore_$(STAMP).dump
 	@echo "restored into database healer_restore_$(STAMP) — inspect it, then drop it when done:"
 	@echo "  docker compose exec postgres dropdb -U healer healer_restore_$(STAMP)"
+
+# Automated rehearsal: backs up the live DB, restores it into a scratch
+# database, asserts every table's row count matches, then drops the scratch
+# database and deletes the dump it made. See docs/backup-and-restore.md.
+backup-restore-test:
+	bash scripts/backup_restore_rehearsal.sh
+
+## --- load testing (docs/load-testing.md) -------------------------------------
+
+# Manual/CI-optional: needs a running stack with a deployed application to
+# hit, so it is not part of `make test`. See docs/load-testing.md for args.
+load-test:
+	bash scripts/load_test_erp.sh

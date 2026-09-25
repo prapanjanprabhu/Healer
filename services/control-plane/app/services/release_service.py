@@ -362,7 +362,9 @@ async def _drain_old_release(
         session.commit()
 
 
-def _prune_old_releases(session: Session, application: Application) -> None:
+async def _prune_old_releases(
+    session: Session, application: Application, deployment: Deployment, agent, config: HealerYamlV1
+) -> None:
     keep = max(application.release_retention_count, 1)
     releases = session.scalars(
         select(Release)
@@ -372,6 +374,38 @@ def _prune_old_releases(session: Session, application: Application) -> None:
     for release in releases[keep:]:
         if release.id == application.active_release_id:
             continue  # defensive — should never happen, the active one is always the newest
+        built_tag = f"healer-{application.slug}:{release.ref}"
+        if config.adapter == "linux-docker" and release.image_ref == built_tag:
+            # Refuse to delete a tag another retained release still records.
+            shared = session.scalars(
+                select(Release).where(Release.id != release.id, Release.image_ref == built_tag)
+            ).first()
+            if shared is not None:
+                _log(session, deployment, "warning", f"kept image {built_tag}: another release uses it")
+                continue
+            try:
+                command = await command_service.submit_command_and_wait(
+                    session,
+                    agent,
+                    AgentCommandType.DEPLOY_RELEASE,
+                    {
+                        "operation": "cleanup_image",
+                        "adapter": "linux-docker",
+                        "app_slug": application.slug,
+                        "release_version": release.ref,
+                    },
+                    idempotency_key=f"cleanup-image:{release.id}:{uuid.uuid4()}",
+                    ttl_seconds=120,
+                    wait_seconds=90.0,
+                )
+                if command.status.value != "succeeded" or not (command.result or {}).get("ok"):
+                    _log(session, deployment, "warning", f"kept image {built_tag}: cleanup failed")
+                    continue
+            except Exception as exc:
+                _log(session, deployment, "warning", f"kept image {built_tag}: cleanup unavailable: {exc}")
+                continue
+        # Pulled digest references may be shared by other apps; leave their
+        # cached image in Docker while pruning the release record.
         session.delete(release)
     session.commit()
 
@@ -485,7 +519,7 @@ async def run_release_switch(session: Session, deployment_id: uuid.UUID) -> None
                 session, deployment, application, agent, old_release_id, config
             )
 
-        _prune_old_releases(session, application)
+        await _prune_old_releases(session, application, deployment, agent, config)
         transition_deployment(session, deployment, DeploymentStatus.SUCCEEDED)
         session.commit()
     finally:

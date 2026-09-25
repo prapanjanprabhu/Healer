@@ -2,6 +2,27 @@
 
 Docker Compose stack for local development.
 
+## Clean-server V1 release
+
+Use [`docker-compose.release.yml`](docker-compose.release.yml) for an
+installation. Check out the source tag matching `VERSION`, copy `.env.example`
+to `.env`, set real secrets and a browser-accessible
+`NEXT_PUBLIC_CONTROL_PLANE_URL`, and set `HEALER_VERSION` to the source tag.
+Set `GATEWAY_HTTP_PORT=80` and `GATEWAY_HTTPS_PORT=443` when this gateway
+owns the public HTTP/HTTPS ports. Then run from the repository root:
+
+```bash
+docker compose -f deploy/docker-compose.release.yml --env-file .env build
+docker compose -f deploy/docker-compose.release.yml --env-file .env up -d postgres redis
+docker compose -f deploy/docker-compose.release.yml --env-file .env run --rm --no-deps control-plane alembic upgrade head
+docker compose -f deploy/docker-compose.release.yml --env-file .env up -d
+```
+
+The release file builds local images tagged with `HEALER_VERSION`, keeps the
+application code inside those images, and starts the central gateway by
+default. PostgreSQL and Redis have no public host ports. The local development
+Compose file below still bind-mounts source and runs hot reload.
+
 **Run `docker compose` from the repo root, not from inside this directory** —
 see the root [`docker-compose.yml`](../docker-compose.yml) for why: it's what
 makes Compose find the real `.env` automatically, without needing

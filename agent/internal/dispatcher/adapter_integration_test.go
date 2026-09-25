@@ -60,6 +60,7 @@ func TestLinuxDockerAdapterFullLifecycleAgainstARealDaemon(t *testing.T) {
 	if imageRef == "" {
 		t.Fatalf("expected a non-empty image_ref, got %v", deployResult)
 	}
+	t.Cleanup(func() { _ = dockerengine.New().RemoveImage(context.Background(), imageRef) })
 	t.Cleanup(func() {
 		dockerengine.New().RemoveContainer(context.Background(), serviceName, true)
 	})
@@ -108,5 +109,13 @@ func TestLinuxDockerAdapterFullLifecycleAgainstARealDaemon(t *testing.T) {
 	}
 	if finalState.Exists {
 		t.Errorf("expected the container to be removed after stop_instance, got %+v", finalState)
+	}
+	cleanup := deployReleasePayload{
+		Operation: "cleanup_image", Adapter: "linux-docker", AppSlug: slug, ReleaseVersion: version,
+	}
+	cleanupRaw, _ := json.Marshal(cleanup)
+	cleanupResult, err := HandleDeployRelease(context.Background(), cleanupRaw)
+	if err != nil || cleanupResult["ok"] != true {
+		t.Fatalf("expected the unused test image to be removed, result=%v err=%v", cleanupResult, err)
 	}
 }

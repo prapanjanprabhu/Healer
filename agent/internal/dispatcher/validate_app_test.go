@@ -120,6 +120,7 @@ func TestValidateAppWindowsSourceMissingIsReported(t *testing.T) {
 }
 
 func TestValidateAppWindowsHappyPath(t *testing.T) {
+	t.Setenv("ProgramData", t.TempDir())
 	sourceDir := t.TempDir()
 	must(t, os.WriteFile(filepath.Join(sourceDir, "requirements.txt"), []byte("Django\n"), 0o644))
 	must(t, os.WriteFile(filepath.Join(sourceDir, "manage.py"), []byte("#!/usr/bin/env python\n"), 0o644))

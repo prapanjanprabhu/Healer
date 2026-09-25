@@ -170,10 +170,10 @@ export default function NewApplicationPage() {
           {sourceType === "folder" && "Folder path"}
           {sourceType === "git" && "Git URL"}
           {sourceType === "dockerfile" && "Dockerfile path"}
-          {sourceType === "image" && "Image reference"}
+            {sourceType === "image" && "Image reference (sha256 digest)"}
           <input
             required
-            placeholder={sourceType === "folder" ? "C:\\apps\\erp" : sourceType === "image" ? "myrepo/app:latest" : ""}
+              placeholder={sourceType === "folder" ? "C:\\apps\\erp" : sourceType === "image" ? "myrepo/app@sha256:..." : ""}
             value={sourceLocation}
             onChange={(e) => setSourceLocation(e.target.value)}
           />

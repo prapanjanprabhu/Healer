@@ -59,6 +59,15 @@ def test_parses_a_valid_linux_config():
     assert config.source.type == "dockerfile"
 
 
+def test_linux_image_source_requires_sha256_digest():
+    image_yaml = LINUX_YAML.replace("type: dockerfile", "type: image")
+    with pytest.raises(HealerYamlParseError):
+        parse_healer_yaml(image_yaml.replace("./Dockerfile", "nginx:latest"))
+    digest = "a" * 64
+    config = parse_healer_yaml(image_yaml.replace("./Dockerfile", f"nginx@sha256:{digest}"))
+    assert config.source.location.endswith(digest)
+
+
 def test_rejects_invalid_yaml_syntax():
     with pytest.raises(HealerYamlParseError) as exc_info:
         parse_healer_yaml("not: valid: yaml: [")
