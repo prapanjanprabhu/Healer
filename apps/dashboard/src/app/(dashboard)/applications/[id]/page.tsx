@@ -50,44 +50,55 @@ export default async function ApplicationDetailPage({ params }: { params: { id: 
 
       <div className="healer-card" style={{ maxWidth: 640, marginBottom: 20 }}>
         <div className="healer-card-title">Configuration</div>
-        <dl className="healer-definition-list">
-          <dt>Source</dt>
-          <dd>
-            {config.source.type}: {config.source.location}
-          </dd>
-          {config.windows && (
-            <>
-              <dt>Python</dt>
-              <dd>{config.windows.python_executable}</dd>
-              <dt>WSGI module</dt>
-              <dd>{config.windows.wsgi_module}</dd>
-              <dt>Settings module</dt>
-              <dd>{config.windows.settings_module}</dd>
-            </>
-          )}
-          {config.linux && (
-            <>
-              <dt>Internal port</dt>
-              <dd>{config.linux.internal_port}</dd>
-            </>
-          )}
-          <dt>Health path</dt>
-          <dd>{config.health.path}</dd>
-          <dt>Replicas</dt>
-          <dd>
-            {application.min_replicas}–{application.max_replicas} allowed, {application.desired_replicas}{" "}
-            desired · ports {application.port_range_start}-{application.port_range_end}
-          </dd>
-          {config.domain?.cert_path && (
-            <>
-              <dt>Certificate</dt>
-              <dd>{config.domain.cert_path}</dd>
-            </>
-          )}
-        </dl>
+        {!config.source && !config.health ? (
+          <p className="healer-error" style={{ marginBottom: 0 }}>
+            This application&apos;s stored configuration is missing or incomplete — re-save it
+            through Create/Edit Application to restore it.
+          </p>
+        ) : (
+          <dl className="healer-definition-list">
+            <dt>Source</dt>
+            <dd>
+              {config.source ? `${config.source.type}: ${config.source.location}` : "not set"}
+            </dd>
+            {config.windows && (
+              <>
+                <dt>Python</dt>
+                <dd>{config.windows.python_executable}</dd>
+                <dt>WSGI module</dt>
+                <dd>{config.windows.wsgi_module}</dd>
+                <dt>Settings module</dt>
+                <dd>{config.windows.settings_module}</dd>
+              </>
+            )}
+            {config.linux && (
+              <>
+                <dt>Internal port</dt>
+                <dd>{config.linux.internal_port}</dd>
+              </>
+            )}
+            <dt>Health path</dt>
+            <dd>{config.health?.path ?? "not set"}</dd>
+            <dt>Replicas</dt>
+            <dd>
+              {application.min_replicas}–{application.max_replicas} allowed, {application.desired_replicas}{" "}
+              desired · ports {application.port_range_start}-{application.port_range_end}
+            </dd>
+            {config.domain?.cert_path && (
+              <>
+                <dt>Certificate</dt>
+                <dd>{config.domain.cert_path}</dd>
+              </>
+            )}
+          </dl>
+        )}
       </div>
 
-      <ValidatePanel applicationId={application.id} secretNames={config.secrets} initialSecrets={secrets} />
+      <ValidatePanel
+        applicationId={application.id}
+        secretNames={config.secrets ?? []}
+        initialSecrets={secrets}
+      />
       {application.active_release_id ? (
         <ReleasePanel applicationId={application.id} />
       ) : (

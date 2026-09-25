@@ -101,7 +101,9 @@ export function EnrollmentTokenPanel({
                   <td>{state}</td>
                   <td>
                     {state === "outstanding" && (
-                      <button onClick={() => revokeToken(token.id)}>Revoke</button>
+                      <button className="healer-btn-danger" onClick={() => revokeToken(token.id)}>
+                        Revoke
+                      </button>
                     )}
                   </td>
                 </tr>

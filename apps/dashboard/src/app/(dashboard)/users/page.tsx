@@ -158,7 +158,11 @@ export default function UsersPage() {
                   </td>
                   <td>{u.is_active ? "active" : "deactivated"}</td>
                   <td>
-                    <button onClick={() => toggleActive(u)} disabled={u.id === currentUser.id}>
+                    <button
+                      className={u.is_active ? "healer-btn-danger" : undefined}
+                      onClick={() => toggleActive(u)}
+                      disabled={u.id === currentUser.id}
+                    >
                       {u.is_active ? "Deactivate" : "Activate"}
                     </button>
                   </td>

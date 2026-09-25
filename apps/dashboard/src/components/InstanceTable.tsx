@@ -111,6 +111,7 @@ export function InstanceTable({ applicationId }: { applicationId: string }) {
                       )}
                       {canStop && (
                         <button
+                          className="healer-btn-danger"
                           onClick={() => act(instance, "stop")}
                           disabled={!actionable || busyId === instance.id}
                         >

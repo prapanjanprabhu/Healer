@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <Theme
           appearance="dark"
-          accentColor="red"
+          accentColor="ruby"
           grayColor="slate"
           radius="large"
           scaling="100%"

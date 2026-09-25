@@ -97,7 +97,12 @@ export function ValidatePanel({
                   {knownKeys.has(name) ? "set" : "not set"}
                 </span>
                 {knownKeys.has(name) && canManageSecrets && (
-                  <button type="button" onClick={() => deleteSecret(name)} style={{ flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="healer-btn-danger"
+                    onClick={() => deleteSecret(name)}
+                    style={{ flexShrink: 0 }}
+                  >
                     Delete
                   </button>
                 )}

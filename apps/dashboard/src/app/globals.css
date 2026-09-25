@@ -119,22 +119,23 @@ a {
 }
 
 .healer-rail-link[data-active] {
-  background: var(--accent-a4);
-  color: var(--accent-12);
-}
-
-.healer-rail-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--gray-a6);
-  flex-shrink: 0;
-  transition: background-color 120ms ease;
-}
-
-.healer-rail-link[data-active] .healer-rail-dot {
+  /* A solid, saturated red — not a translucent tint over the dark
+     surface, which read as a muted brownish-maroon instead of a clean
+     "proper red" highlight. */
   background: var(--accent-9);
-  box-shadow: 0 0 0 3px var(--accent-a4);
+  color: var(--accent-contrast);
+  box-shadow: 0 2px 10px -2px var(--accent-a8);
+}
+
+.healer-rail-link svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+  transition: opacity 120ms ease;
+}
+
+.healer-rail-link:hover svg,
+.healer-rail-link[data-active] svg {
+  opacity: 1;
 }
 
 .healer-rail-footer {
@@ -192,6 +193,13 @@ a {
 .healer-main {
   padding: 32px 40px;
   max-width: 1080px;
+}
+
+/* Opt-out for data-dense pages (the DB table browser): a 1080px reading
+   width is right for forms/cards, but wastes most of a wide monitor on a
+   table that already needs its own horizontal scroll for many columns. */
+.healer-main:has(.healer-wide-page) {
+  max-width: none;
 }
 
 /* Rail (desktop) vs. top bar + drawer (everything narrower than that)
@@ -296,6 +304,13 @@ a {
   color: var(--gray-12);
   font-size: 0.85rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .healer-logout-button:hover {
@@ -414,51 +429,106 @@ textarea:focus-visible,
   margin-bottom: 16px;
 }
 
-.healer-login-card button[type="submit"] {
-  padding: 10px 12px;
-  border-radius: var(--radius-3);
-  border: none;
-  background: var(--accent-9);
-  color: var(--accent-contrast);
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-}
-
-.healer-login-card button[type="submit"]:hover:not(:disabled) {
-  background: var(--accent-10);
-}
-
-.healer-login-card button[type="submit"]:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
+/* ---------------------------------------------------------------------
+   Button system — three tiers, used consistently everywhere instead of
+   every panel inventing its own button look:
+     • silver (default): the primary/neutral action in a panel — Deploy,
+       Save, Confirm, Sign in, Create. A brushed-metal gray, not the
+       accent color, so it doesn't compete with red's role below.
+     • royal red (.healer-btn-danger): destructive actions only — Delete,
+       Deactivate, Revoke, Stop. This is where the site's "royal red"
+       accent shows up on buttons specifically, so red on a button always
+       means "this removes/breaks something."
+     • blue (.healer-table button, .healer-btn-secondary): secondary/
+       navigational actions — View, Edit, row-level table actions.
+   All three share the same sizing, radius, and hover/active/focus
+   transitions so switching tiers never changes shape, only color.
+   --------------------------------------------------------------------- */
 
 button {
   font-family: inherit;
 }
 
 .healer-card button,
-.healer-primary-button {
-  padding: 9px 14px;
+.healer-primary-button,
+.healer-login-card button[type="submit"],
+.healer-btn-danger,
+.healer-btn-secondary {
+  padding: 9px 16px;
   border-radius: var(--radius-3);
-  border: 1px solid var(--gray-a5);
-  background: var(--accent-9);
-  color: var(--accent-contrast);
+  border: 1px solid transparent;
   font-weight: 600;
   font-size: 0.9rem;
   cursor: pointer;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   text-decoration: none;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 80ms ease,
+    box-shadow 120ms ease;
 }
 
-.healer-card button:hover:not(:disabled) {
-  background: var(--accent-10);
+/* Silver — the default/primary tier. */
+.healer-card button,
+.healer-primary-button,
+.healer-login-card button[type="submit"] {
+  background: linear-gradient(180deg, var(--gray-9), var(--gray-11));
+  border-color: var(--gray-a7);
+  color: var(--gray-1);
+  box-shadow: 0 1px 0 0 var(--gray-a4) inset;
 }
 
-.healer-card button:disabled {
-  opacity: 0.6;
+.healer-card button:hover:not(:disabled),
+.healer-primary-button:hover:not(:disabled),
+.healer-login-card button[type="submit"]:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--gray-10), var(--gray-12));
+  border-color: var(--gray-a8);
+}
+
+/* Royal red — destructive actions only. Apply alongside the base class,
+   e.g. <button className="healer-btn-danger">Delete</button>. */
+.healer-btn-danger {
+  background: linear-gradient(180deg, var(--ruby-9), var(--ruby-10));
+  border-color: var(--ruby-a7);
+  color: var(--ruby-contrast);
+}
+
+.healer-btn-danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--ruby-10), var(--ruby-11));
+  border-color: var(--ruby-8);
+}
+
+/* Blue — secondary/navigational actions. */
+.healer-btn-secondary {
+  background: linear-gradient(180deg, var(--blue-9), var(--blue-10));
+  border-color: var(--blue-a7);
+  color: var(--blue-contrast);
+}
+
+.healer-btn-secondary:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--blue-10), var(--blue-11));
+  border-color: var(--blue-8);
+}
+
+.healer-card button:active:not(:disabled),
+.healer-primary-button:active:not(:disabled),
+.healer-login-card button[type="submit"]:active:not(:disabled),
+.healer-btn-danger:active:not(:disabled),
+.healer-btn-secondary:active:not(:disabled),
+.healer-table button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.healer-card button:disabled,
+.healer-login-card button[type="submit"]:disabled,
+.healer-btn-danger:disabled,
+.healer-btn-secondary:disabled {
+  opacity: 0.5;
   cursor: default;
+  transform: none;
 }
 
 .healer-card select,
@@ -512,6 +582,11 @@ button {
   background: var(--blue-a3);
 }
 
+.healer-issue-success {
+  border-left-color: var(--green-9);
+  background: var(--green-a3);
+}
+
 .healer-issue-field {
   font-weight: 600;
   margin-right: 6px;
@@ -542,19 +617,53 @@ button {
   background: var(--gray-a2);
 }
 
-.healer-table button {
-  padding: 4px 10px;
+/* Table row actions default to the blue "secondary" tier — View/Edit and
+   similar navigational actions. A row action that's actually destructive
+   (Stop, Delete) additionally gets .healer-btn-danger, overriding this. */
+.healer-table button,
+.healer-table a.healer-btn-secondary {
+  padding: 5px 12px;
   border-radius: var(--radius-2);
-  border: 1px solid var(--gray-a6);
-  background: transparent;
-  color: var(--gray-12);
+  border: 1px solid var(--blue-a7);
+  background: var(--blue-a3);
+  color: var(--blue-11);
   font-size: 0.8rem;
+  font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 80ms ease;
+}
+
+.healer-table button svg {
+  flex-shrink: 0;
 }
 
 .healer-table button:hover:not(:disabled) {
-  border-color: var(--accent-8);
-  color: var(--accent-11);
+  background: var(--blue-a4);
+  border-color: var(--blue-8);
+  color: var(--blue-12);
+}
+
+.healer-table button.healer-btn-danger {
+  background: linear-gradient(180deg, var(--ruby-9), var(--ruby-10));
+  border-color: var(--ruby-a7);
+  color: var(--ruby-contrast);
+}
+
+.healer-table button.healer-btn-danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--ruby-10), var(--ruby-11));
+  border-color: var(--ruby-8);
+  color: var(--ruby-contrast);
+}
+
+.healer-table button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .healer-badge-ok {
@@ -565,6 +674,267 @@ button {
 .healer-badge-off {
   background: var(--gray-a3);
   color: var(--gray-10);
+}
+
+/* ---------------------------------------------------------------------
+   DataTable-style browser (the database row browser): a toolbar (page
+   size + search), a scrollable table with a sticky header and sortable
+   columns, and a "Showing X to Y of Z entries" footer with numbered
+   pages — the classic DataTables.net layout, built with real components
+   instead of the jQuery plugin (which would fight React's rendering
+   model) for the same result.
+   --------------------------------------------------------------------- */
+
+.healer-dt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.healer-dt-length {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--gray-10);
+}
+
+.healer-dt-length select {
+  padding: 6px 8px;
+  border-radius: var(--radius-2);
+  border: 1px solid var(--gray-a6);
+  background: var(--gray-2);
+  color: var(--gray-12);
+  font-size: 0.85rem;
+}
+
+.healer-dt-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--gray-10);
+}
+
+.healer-dt-search input {
+  padding: 7px 10px 7px 30px;
+  border-radius: var(--radius-3);
+  border: 1px solid var(--gray-a6);
+  background:
+    var(--gray-2)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b8d98' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E")
+    no-repeat 10px center;
+  color: var(--gray-12);
+  font-size: 0.9rem;
+  width: 220px;
+  max-width: 60vw;
+}
+
+.healer-dt-search input:focus-visible {
+  outline: 2px solid var(--accent-8);
+  outline-offset: 1px;
+}
+
+.healer-dt-wrap {
+  border: 1px solid var(--gray-a5);
+  border-radius: var(--radius-4);
+  /* Horizontal scroll only (no max-height/vertical scrollbar) — a fixed
+     max-height previously boxed the table into a small pane with dead
+     space below it on tall viewports. The box grows with its content and
+     scrolls with the page; `position: sticky` on thead th below still
+     pins the header against that page scroll, the standard pattern for a
+     horizontally-scrollable table with a sticky header. */
+  overflow-x: auto;
+}
+
+.healer-dt-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.healer-dt-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  color: var(--gray-11);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 10px 14px;
+  background: var(--color-panel-solid);
+  border-bottom: 1px solid var(--gray-a6);
+  white-space: nowrap;
+}
+
+.healer-dt-sortable {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.healer-dt-sortable:hover {
+  color: var(--accent-11);
+}
+
+.healer-dt-sort-arrow {
+  display: inline-block;
+  margin-left: 4px;
+  opacity: 0.5;
+}
+
+.healer-dt-sort-arrow[data-active="true"] {
+  opacity: 1;
+  color: var(--accent-9);
+}
+
+.healer-dt-wrap tbody td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--gray-a4);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.healer-dt-wrap tbody tr:nth-child(even) td {
+  background: var(--gray-a2);
+}
+
+.healer-dt-wrap tbody tr:hover td {
+  background: var(--accent-a2);
+}
+
+.healer-dt-wrap tbody td.healer-dt-actions {
+  white-space: nowrap;
+  display: table-cell;
+}
+
+.healer-dt-wrap tbody td.healer-dt-actions .healer-dt-actions-inner {
+  display: flex;
+  gap: 6px;
+}
+
+/* Row-action buttons (Edit/Save/Cancel here; Delete gets .healer-btn-danger
+   from the shared button system) — same blue "secondary" tier as
+   .healer-table button, since this table renders outside a .healer-table
+   element and wouldn't otherwise pick up any button styling at all. */
+.healer-dt-actions-inner button {
+  padding: 5px 12px;
+  border-radius: var(--radius-2);
+  border: 1px solid var(--blue-a7);
+  background: var(--blue-a3);
+  color: var(--blue-11);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 80ms ease;
+}
+
+.healer-dt-actions-inner button svg {
+  flex-shrink: 0;
+}
+
+.healer-dt-actions-inner button:hover:not(:disabled) {
+  background: var(--blue-a4);
+  border-color: var(--blue-8);
+  color: var(--blue-12);
+}
+
+.healer-dt-actions-inner button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.healer-dt-actions-inner button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Explicit override, not just relying on source order: .healer-btn-danger
+   alone (0,1,0) is less specific than .healer-dt-actions-inner button
+   (0,1,1) above and would otherwise lose the cascade, leaving Delete blue
+   instead of red. */
+.healer-dt-actions-inner button.healer-btn-danger {
+  background: linear-gradient(180deg, var(--ruby-9), var(--ruby-10));
+  border-color: var(--ruby-a7);
+  color: var(--ruby-contrast);
+}
+
+.healer-dt-actions-inner button.healer-btn-danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--ruby-10), var(--ruby-11));
+  border-color: var(--ruby-8);
+  color: var(--ruby-contrast);
+}
+
+.healer-dt-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.healer-dt-footer-info {
+  font-size: 0.85rem;
+  color: var(--gray-10);
+}
+
+.healer-dt-pager {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.healer-dt-pager button {
+  min-width: 32px;
+  padding: 5px 9px;
+  border-radius: var(--radius-2);
+  border: 1px solid var(--gray-a6);
+  background: transparent;
+  color: var(--gray-12);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.healer-dt-pager button:hover:not(:disabled):not([data-current="true"]) {
+  border-color: var(--accent-8);
+  color: var(--accent-11);
+}
+
+.healer-dt-pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.healer-dt-pager button[data-current="true"] {
+  background: var(--accent-9);
+  border-color: var(--accent-9);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.healer-dt-pager button[data-ellipsis="true"] {
+  border-color: transparent;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .healer-dt-search input {
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 .healer-definition-list {

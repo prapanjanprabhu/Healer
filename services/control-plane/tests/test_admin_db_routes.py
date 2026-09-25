@@ -201,6 +201,57 @@ def test_deployments_table_is_now_deletable_full_crud(client, db_session):
     assert response.status_code == 204
 
 
+def test_search_filters_rows_across_columns(client, db_session):
+    login_as(client, db_session, role="Administrator", email="admin-db-11@healer.test")
+    make_server(db_session, name="findable-by-search-xyz")
+    make_server(db_session, name="unrelated-server")
+
+    response = client.get("/admin/db/tables/servers/rows?search=findable-by-search")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["rows"][0]["name"] == "findable-by-search-xyz"
+
+
+def test_search_escapes_like_wildcards(client, db_session):
+    login_as(client, db_session, role="Administrator", email="admin-db-12@healer.test")
+    make_server(db_session, name="literal-percent-%-name")
+    make_server(db_session, name="does-not-contain-that-literally")
+
+    response = client.get("/admin/db/tables/servers/rows?search=percent-%25-name")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["rows"][0]["name"] == "literal-percent-%-name"
+
+
+def test_search_does_not_match_against_redacted_columns(client, db_session):
+    login_as(client, db_session, role="Administrator", email="admin-db-13@healer.test")
+    user = make_user(db_session, email="search-vs-redacted@healer.test")
+
+    # A search term that happens to be a substring of the real (bcrypt)
+    # password hash must not match — that column is excluded from search
+    # entirely, the same way it's excluded from editing.
+    response = client.get(f"/admin/db/tables/users/rows?search={user.password_hash[:10]}")
+    assert response.status_code == 200
+    ids = {row["id"] for row in response.json()["rows"]}
+    assert str(user.id) not in ids
+
+
+def test_sort_by_orders_rows(client, db_session):
+    login_as(client, db_session, role="Administrator", email="admin-db-14@healer.test")
+    make_server(db_session, name="aaa-first-alphabetically")
+    make_server(db_session, name="zzz-last-alphabetically")
+
+    response = client.get("/admin/db/tables/servers/rows?sort_by=name&sort_dir=asc&limit=200")
+    names = [row["name"] for row in response.json()["rows"]]
+    assert names.index("aaa-first-alphabetically") < names.index("zzz-last-alphabetically")
+
+    response_desc = client.get("/admin/db/tables/servers/rows?sort_by=name&sort_dir=desc&limit=200")
+    names_desc = [row["name"] for row in response_desc.json()["rows"]]
+    assert names_desc.index("zzz-last-alphabetically") < names_desc.index("aaa-first-alphabetically")
+
+
 def test_cannot_edit_the_primary_key_column(client, db_session):
     login_as(client, db_session, role="Administrator", email="admin-db-10@healer.test")
     server = make_server(db_session)

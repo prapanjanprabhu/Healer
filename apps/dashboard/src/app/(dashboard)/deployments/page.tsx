@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { EyeOpenIcon } from "@radix-ui/react-icons";
 import { CONTROL_PLANE_INTERNAL_URL } from "@/lib/config";
 import type { DeploymentSummary } from "@/lib/types";
 
@@ -14,8 +15,10 @@ async function getDeployments(): Promise<DeploymentSummary[] | null> {
 }
 
 const STATUS_CLASS: Record<string, string> = {
+  succeeded: "healer-issue-success",
   failed: "healer-issue-error",
   in_progress: "healer-issue-warning",
+  rolled_back: "healer-issue-warning",
 };
 
 export default async function DeploymentsPage() {
@@ -60,7 +63,10 @@ export default async function DeploymentsPage() {
                 </td>
                 <td>{new Date(d.created_at).toLocaleString()}</td>
                 <td>
-                  <Link href={`/deployments/${d.id}`}>View</Link>
+                  <Link href={`/deployments/${d.id}`} className="healer-btn-secondary">
+                    <EyeOpenIcon width={14} height={14} />
+                    View
+                  </Link>
                 </td>
               </tr>
             ))}

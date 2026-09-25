@@ -14,13 +14,45 @@ import {
   Text,
   Tooltip,
 } from "@radix-ui/themes";
-import { Cross1Icon, HamburgerMenuIcon } from "@radix-ui/react-icons";
+import {
+  ActivityLogIcon,
+  ArchiveIcon,
+  Component1Icon,
+  CounterClockwiseClockIcon,
+  Cross1Icon,
+  DashboardIcon,
+  GearIcon,
+  HamburgerMenuIcon,
+  LockClosedIcon,
+  PersonIcon,
+  RocketIcon,
+  StackIcon,
+} from "@radix-ui/react-icons";
 import { LogoutButton } from "@/components/LogoutButton";
 import { NAV_ITEMS } from "@/lib/nav";
 import { hasPermission } from "@/lib/permissions";
 import type { CurrentUser } from "@/lib/types";
 
 const OVERVIEW_ITEM = { href: "/", label: "Overview", description: "At-a-glance system status." };
+
+// One icon per nav destination — keyed by href rather than baked into
+// lib/nav.ts's data shape, so that module stays plain data usable outside
+// a React/JSX context.
+const NAV_ICONS: Record<
+  string,
+  React.ComponentType<{ width?: number | string; height?: number | string }>
+> = {
+  "/": DashboardIcon,
+  "/servers": StackIcon,
+  "/applications": Component1Icon,
+  "/deployments": RocketIcon,
+  "/health": ActivityLogIcon,
+  "/certificates": LockClosedIcon,
+  "/audit-log": CounterClockwiseClockIcon,
+  "/users": PersonIcon,
+  "/db": ArchiveIcon,
+  "/settings": GearIcon,
+};
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -39,6 +71,7 @@ function NavList({ user, onNavigate }: { user: CurrentUser; onNavigate?: () => v
       <nav>
         {items.map((item) => {
           const active = isActive(pathname ?? "", item.href);
+          const Icon = NAV_ICONS[item.href] ?? DashboardIcon;
           return (
             <Tooltip key={item.href} content={item.description} side="right" delayDuration={400}>
               <Link
@@ -48,7 +81,7 @@ function NavList({ user, onNavigate }: { user: CurrentUser; onNavigate?: () => v
                 data-active={active || undefined}
                 aria-current={active ? "page" : undefined}
               >
-                <span className="healer-rail-dot" aria-hidden="true" />
+                <Icon width={16} height={16} />
                 <Text size="2" weight={active ? "bold" : "medium"}>
                   {item.label}
                 </Text>

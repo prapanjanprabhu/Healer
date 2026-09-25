@@ -15,6 +15,7 @@ function durationLabel(started: string | null, finished: string | null): string 
 }
 
 const STEP_CLASS: Record<string, string> = {
+  succeeded: "healer-issue-success",
   failed: "healer-issue-error",
   skipped: "healer-issue-warning",
 };

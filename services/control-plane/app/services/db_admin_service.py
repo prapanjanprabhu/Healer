@@ -207,24 +207,63 @@ def _row_to_dict(table: sa.Table, row: sa.Row) -> dict[str, Any]:
     return result
 
 
+def _escape_like(term: str) -> str:
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _search_condition(table: sa.Table, search: str) -> sa.ColumnElement[bool]:
+    """One ILIKE-across-every-column search, the way a DataTable's search
+    box behaves — every text-castable, non-sensitive column is checked,
+    OR'd together. Sensitive columns (GLOBAL_SENSITIVE_COLUMNS) are left
+    out: matching against a redacted value could never mean anything to
+    whoever typed the search term.
+    """
+    pattern = f"%{_escape_like(search)}%"
+    conditions = [
+        sa.cast(col, sa.Text).ilike(pattern, escape="\\")
+        for col in table.columns
+        if col.name not in GLOBAL_SENSITIVE_COLUMNS
+    ]
+    return sa.or_(*conditions)
+
+
 def list_rows(
-    session: Session, table_name: str, *, limit: int, offset: int
+    session: Session,
+    table_name: str,
+    *,
+    limit: int,
+    offset: int,
+    search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str = "asc",
 ) -> tuple[list[dict[str, Any]], int]:
     table = get_table(table_name)
     limit = max(1, min(limit or DEFAULT_LIMIT, MAX_LIMIT))
     offset = max(0, offset or 0)
 
-    order_column = table.columns.get("created_at")
-    if order_column is None:
-        order_column = list(table.primary_key.columns)[0] if table.primary_key.columns else None
-
     stmt = sa.select(table)
-    if order_column is not None:
-        stmt = stmt.order_by(order_column.desc())
+    count_stmt = sa.select(sa.func.count()).select_from(table)
+
+    search = (search or "").strip()
+    if search:
+        condition = _search_condition(table, search)
+        stmt = stmt.where(condition)
+        count_stmt = count_stmt.where(condition)
+
+    sort_column = table.columns.get(sort_by) if sort_by else None
+    if sort_column is not None:
+        stmt = stmt.order_by(sort_column.desc() if sort_dir == "desc" else sort_column.asc())
+    else:
+        order_column = table.columns.get("created_at")
+        if order_column is None:
+            order_column = list(table.primary_key.columns)[0] if table.primary_key.columns else None
+        if order_column is not None:
+            stmt = stmt.order_by(order_column.desc())
+
     stmt = stmt.limit(limit).offset(offset)
 
     rows = [_redact_row(table_name, _row_to_dict(table, row)) for row in session.execute(stmt)]
-    total = session.execute(sa.select(sa.func.count()).select_from(table)).scalar_one()
+    total = session.execute(count_stmt).scalar_one()
     return rows, total
 
 

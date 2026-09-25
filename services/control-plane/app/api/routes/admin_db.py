@@ -49,11 +49,22 @@ def list_rows(
     table_name: str,
     limit: int = Query(default=db_admin_service.DEFAULT_LIMIT, ge=1, le=db_admin_service.MAX_LIMIT),
     offset: int = Query(default=0, ge=0),
+    search: str | None = Query(default=None, max_length=200),
+    sort_by: str | None = Query(default=None, max_length=200),
+    sort_dir: str = Query(default="asc", pattern="^(asc|desc)$"),
     db: Session = Depends(get_db),
     _current_user: CurrentUser = Depends(require_permission("manage_db")),
 ) -> dict:
     try:
-        rows, total = db_admin_service.list_rows(db, table_name, limit=limit, offset=offset)
+        rows, total = db_admin_service.list_rows(
+            db,
+            table_name,
+            limit=limit,
+            offset=offset,
+            search=search,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+        )
     except DBAdminError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"rows": rows, "total": total, "limit": limit, "offset": offset}

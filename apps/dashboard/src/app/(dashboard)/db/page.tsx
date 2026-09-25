@@ -36,7 +36,7 @@ export default function DatabaseTablesPage() {
   const visible = tables?.filter((t) => t.name.includes(filter.trim().toLowerCase())) ?? null;
 
   return (
-    <div>
+    <div className="healer-wide-page">
       <h1 className="healer-page-title">Database</h1>
       <p className="healer-page-description">
         Every table is fully browsable, editable and deletable — including users, deployments,

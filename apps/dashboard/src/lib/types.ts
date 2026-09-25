@@ -31,7 +31,11 @@ export interface HealerYamlConfig {
   name: string;
   adapter: AdapterName;
   server_id: string | null;
-  source: { type: "folder" | "git" | "dockerfile" | "image"; location: string; ref?: string | null };
+  // Optional, not just in the type sense: the Control Plane falls back to
+  // `{}` for a row whose stored config is missing/corrupted (see
+  // ApplicationOut.from_model, `config=application.config or {}`), so a
+  // real API response can omit every field below this line.
+  source?: { type: "folder" | "git" | "dockerfile" | "image"; location: string; ref?: string | null };
   windows?: {
     python_executable: string;
     requirements_file: string;
@@ -45,17 +49,17 @@ export interface HealerYamlConfig {
     cpu_limit?: number | null;
     memory_limit_mb?: number | null;
   } | null;
-  health: {
+  health?: {
     path: string;
     interval_seconds: number;
     timeout_seconds: number;
     healthy_threshold: number;
     unhealthy_threshold: number;
   };
-  ports: { start: number; end: number };
-  replicas: { min: number; max: number };
+  ports?: { start: number; end: number };
+  replicas?: { min: number; max: number };
   domain?: { hostname: string; cert_path?: string | null; key_path?: string | null } | null;
-  secrets: string[];
+  secrets?: string[];
 }
 
 export interface Application {

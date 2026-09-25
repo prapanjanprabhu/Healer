@@ -40,7 +40,7 @@ export function RevokeAgentButton({ serverId }: { serverId: string }) {
 
   return (
     <div style={{ marginTop: 8 }}>
-      <button onClick={revoke} disabled={busy}>
+      <button className="healer-btn-danger" onClick={revoke} disabled={busy}>
         {busy ? "Revoking…" : "Revoke agent"}
       </button>
       {error && (
