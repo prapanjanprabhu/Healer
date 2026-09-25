@@ -55,8 +55,8 @@ export function DeploymentDetailView({ initialDetail }: { initialDetail: Deploym
             style={{
               maxHeight: 260,
               overflowY: "auto",
-              background: "var(--healer-code-bg, #111)",
-              color: "var(--healer-code-fg, #ddd)",
+              background: "var(--healer-input-bg)",
+              color: "var(--healer-text)",
               padding: 12,
               borderRadius: 6,
               fontSize: 12,

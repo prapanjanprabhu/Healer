@@ -47,7 +47,7 @@ export function DeploymentTimeline({ detail }: { detail: DeploymentDetail }) {
               <span className="healer-issue-field">{step.name}</span>
               {step.status}
             </span>
-            <span style={{ color: "var(--healer-muted, #888)", flexShrink: 0 }}>
+            <span style={{ color: "var(--healer-text-secondary)", flexShrink: 0 }}>
               {formatTime(step.started_at)}
               {durationLabel(step.started_at, step.finished_at) &&
                 ` (${durationLabel(step.started_at, step.finished_at)})`}

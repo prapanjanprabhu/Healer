@@ -44,15 +44,18 @@ function ServerMetricsCard({ server }: { server: Server }) {
         <dl className="healer-definition-list">
           <dt>CPU</dt>
           <dd>
-            {latestValue(rows, "cpu_percent")}% <Sparkline values={cpu} color="#3b82f6" />
+            {latestValue(rows, "cpu_percent")}%{" "}
+            <Sparkline values={cpu} color="var(--healer-info)" />
           </dd>
           <dt>RAM</dt>
           <dd>
-            {latestValue(rows, "memory_percent")}% <Sparkline values={memory} color="#22c55e" />
+            {latestValue(rows, "memory_percent")}%{" "}
+            <Sparkline values={memory} color="var(--healer-success)" />
           </dd>
           <dt>Disk</dt>
           <dd>
-            {latestValue(rows, "disk_percent")}% <Sparkline values={disk} color="#f59e0b" />
+            {latestValue(rows, "disk_percent")}%{" "}
+            <Sparkline values={disk} color="var(--healer-warning)" />
           </dd>
         </dl>
       )}

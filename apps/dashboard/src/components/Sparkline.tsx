@@ -8,7 +8,7 @@ export function Sparkline({
   values,
   width = 160,
   height = 36,
-  color = "#3b82f6",
+  color = "var(--healer-info)",
 }: {
   values: number[];
   width?: number;
@@ -18,7 +18,7 @@ export function Sparkline({
   if (values.length === 0) {
     return (
       <svg width={width} height={height} role="img" aria-label="no data">
-        <text x={4} y={height / 2} fontSize={10} fill="var(--healer-muted, #888)">
+        <text x={4} y={height / 2} fontSize={10} fill="var(--healer-text-secondary)">
           no data
         </text>
       </svg>

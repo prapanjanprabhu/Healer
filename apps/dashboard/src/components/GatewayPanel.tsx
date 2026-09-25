@@ -56,7 +56,7 @@ export function GatewayPanel({
 
       {result && (
         <p
-          className={`healer-issue healer-issue-${result.ok ? "info" : "error"}`}
+          className={`healer-issue healer-issue-${result.ok ? "success" : "error"}`}
           style={{ marginTop: 12 }}
         >
           {result.message || (result.ok ? "Synced." : "Sync failed.")}

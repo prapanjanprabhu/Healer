@@ -104,7 +104,13 @@ export function DeployPanel({ applicationId }: { applicationId: string }) {
               <li
                 key={index}
                 className={`healer-issue healer-issue-${
-                  step.status === "failed" ? "error" : step.status === "skipped" ? "warning" : "info"
+                  step.status === "failed"
+                    ? "error"
+                    : step.status === "skipped"
+                      ? "warning"
+                      : step.status === "succeeded"
+                        ? "success"
+                        : "info"
                 }`}
               >
                 <span className="healer-issue-field">{step.name}</span>

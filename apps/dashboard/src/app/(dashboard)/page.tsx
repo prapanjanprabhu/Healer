@@ -12,6 +12,13 @@ async function getJson<T>(path: string): Promise<T | null> {
   return response.json();
 }
 
+const DEPLOYMENT_STATUS_CLASS: Record<string, string> = {
+  succeeded: "healer-issue-success",
+  failed: "healer-issue-error",
+  in_progress: "healer-issue-warning",
+  rolled_back: "healer-issue-warning",
+};
+
 function Card({ label, value, tone }: { label: string; value: string | number; tone?: "warning" | "error" }) {
   return (
     <div className="healer-card" style={{ minWidth: 160, flex: "1 1 160px" }}>
@@ -20,7 +27,7 @@ function Card({ label, value, tone }: { label: string; value: string | number; t
         style={{
           fontSize: 32,
           fontWeight: 600,
-          color: tone === "error" ? "var(--healer-error, #d33)" : tone === "warning" ? "var(--healer-warning, #b58a00)" : undefined,
+          color: tone === "error" ? "var(--healer-danger)" : tone === "warning" ? "var(--healer-warning)" : undefined,
         }}
       >
         {value}
@@ -83,7 +90,7 @@ export default async function OverviewPage() {
         ) : (
           <ul className="healer-issue-list">
             {deployments.slice(0, 8).map((d) => (
-              <li key={d.id} className={`healer-issue healer-issue-${d.status === "failed" ? "error" : "info"}`}>
+              <li key={d.id} className={`healer-issue ${DEPLOYMENT_STATUS_CLASS[d.status] ?? "healer-issue-info"}`}>
                 <span className="healer-issue-field">{d.application_name}</span>
                 {d.kind} — {d.status}
               </li>

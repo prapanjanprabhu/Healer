@@ -13,6 +13,22 @@ function healthLabel(instance: Instance): string {
   return instance.healthy ? "healthy" : "unhealthy";
 }
 
+const STATE_BADGE_CLASS: Record<string, string> = {
+  running: "healer-badge-ok",
+  failed: "healer-badge-error",
+  unhealthy: "healer-badge-error",
+  stopped: "healer-badge-off",
+  pending: "healer-badge-warning",
+  starting: "healer-badge-warning",
+  restarting: "healer-badge-warning",
+  draining: "healer-badge-warning",
+};
+
+function healthBadgeClass(instance: Instance): string {
+  if (instance.healthy === null) return "healer-badge-off";
+  return instance.healthy ? "healer-badge-ok" : "healer-badge-error";
+}
+
 export function InstanceTable({ applicationId }: { applicationId: string }) {
   const canRestart = useHasPermission("restart");
   const canStop = useHasPermission("stop");
@@ -90,8 +106,19 @@ export function InstanceTable({ applicationId }: { applicationId: string }) {
                 <tr key={instance.id}>
                   <td>{instance.port}</td>
                   <td>{instance.server_name}</td>
-                  <td>{instance.status}</td>
-                  <td>{healthLabel(instance)}</td>
+                  <td>
+                    <span
+                      className={`healer-badge ${STATE_BADGE_CLASS[instance.status] ?? "healer-badge-off"}`}
+                      style={{ marginBottom: 0 }}
+                    >
+                      {instance.status}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`healer-badge ${healthBadgeClass(instance)}`} style={{ marginBottom: 0 }}>
+                      {healthLabel(instance)}
+                    </span>
+                  </td>
                   <td>{instance.response_time_ms !== null ? `${instance.response_time_ms} ms` : "—"}</td>
                   <td>{instance.release_version || "—"}</td>
                   <td>

@@ -186,7 +186,12 @@ export function ReleasePanel({ applicationId }: { applicationId: string }) {
       {releases.length > 0 && (
         <ul className="healer-issue-list" style={{ marginTop: 12 }}>
           {releases.map((r) => (
-            <li key={r.id} className={`healer-issue healer-issue-${r.is_active ? "info" : "warning"}`}>
+            <li
+              key={r.id}
+              className={`healer-issue healer-issue-${
+                r.status === "failed" ? "error" : r.is_active ? "success" : "info"
+              }`}
+            >
               <span className="healer-issue-field">{r.ref}</span>
               {r.status}
               {r.is_active && " (active)"}
